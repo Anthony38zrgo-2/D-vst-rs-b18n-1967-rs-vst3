@@ -1,0 +1,6 @@
+# golden: R(pin3, masa) - V3 7199 pentodo
+# netlist: scripts/spice/b18n_7199_dc_1967.cir
+# simulador: ngspice-47 (Windows x64, 2026-08-11)
+# procedimiento: fuentes de DC anuladas; iinj = 1 A de masa a pin3; v(pin3) = R
+variant_A_off_floating_rail_ohms = 150000.0
+variant_B_rail_shorted_to_ground_ohms = 113709.6774193548

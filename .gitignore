@@ -1,0 +1,24 @@
+/target
+**/*.rs.bk
+Cargo.lock.orig
+
+# Third-party reference PDFs are kept locally for engineering use only and
+# must not be redistributed with the repository (see assets/reference/README.md).
+assets/reference/*
+!assets/reference/README.md
+
+# Generated renders and reports
+/target/renders
+/target/reports
+
+# Herramientas locales de verificación (ngspice 47, extractor 7z)
+/tools/
+
+# Artefactos de análisis de los PDF históricos (recortes, texto extraído)
+/extracted/
+__pycache__/
+*.pyc
+
+.idea/
+.vscode/
+*.swp

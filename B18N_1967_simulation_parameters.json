@@ -1,0 +1,155 @@
+{
+  "identity": {
+    "manufacturer": "Ampeg",
+    "model": "B-18N Portaflex",
+    "schematic_revision": "1967-05",
+    "schematic_shared_with": "B-15ND (amplifier circuit; cabinet differs)",
+    "documented_nominal_output_w": 50,
+    "other_period_reported_output_w": 60,
+    "provenance": [
+      "https://vintage-blue.com/assets/b18n-b15nd_schematic_5_67.pdf",
+      "https://vintage-blue.com/assets/b18n_1967_service_manual.pdf"
+    ]
+  },
+  "controls": {
+    "channels": 2,
+    "channel_1_inputs": ["bass", "guitar"],
+    "channel_2_inputs": ["instrument"],
+    "each_channel": {
+      "volume": {"ohms": 1000000, "law": "logarithmic"},
+      "bass": {"ohms": 1000000, "law": "linear"},
+      "treble": {"ohms": 1000000, "law": "linear"}
+    },
+    "hum_balance": {"ohms": 100, "law": "linear", "rating_w": 2},
+    "potentiometer_tolerance_percent": 10
+  },
+  "preamp": {
+    "v1": "6SL7GT (channel 1, two triodes)",
+    "v2": "6SL7GT (channel 2, two triodes)",
+    "each_channel": {
+      "triode_1_plate_resistor_ohms": 470000,
+      "triode_1_cathode_resistor_ohms": 5600,
+      "triode_1_cathode_bypass_farads": null,
+      "coupling_cap_1_farads": 2.2e-8,
+      "triode_2_plate_resistor_ohms": 220000,
+      "triode_2_cathode_resistor_ohms": 2200,
+      "triode_2_cathode_bypass_farads": null,
+      "coupling_cap_2_farads": 2.2e-8,
+      "channel_mixer_resistor_ohms": 270000,
+      "typical_dc_plate_1_v": 175,
+      "typical_dc_plate_2_v": 185,
+      "typical_dc_cathode_1_v": 2.4,
+      "typical_dc_cathode_2_v": 2.0
+    },
+    "input_network_values_visible_ohms": [120000, 120000, 100000, 5600000, 2200000],
+    "input_network_note": "Values span separate inputs and channels; preserve their schematic connections rather than treating them as series components.",
+    "tube_6sl7gt_reference_at_250v": {"mu_typ": 70, "rp_ohms_typ": 44000, "gm_s_typ": 0.0016, "ia_a_typ": 0.0023},
+    "tube_6sl7gt_characteristic_curves": null
+  },
+  "tone_stack": {
+    "circuit": "original coupled two-knob passive RC network; not independent shelving EQ",
+    "printed_board_resistors_ohms": [220000, 22000],
+    "printed_board_capacitors_farads": [1e-9, 1e-8, 4.7e-10, 4.7e-9],
+    "additional_resistors_visible_in_full_schematic_ohms": [120000, 270000],
+    "connection_source": "Service manual printed CKT tone control and 5/67 full schematic",
+    "fixed_bass_frequency_hz": null,
+    "fixed_treble_frequency_hz": null,
+    "note": "Compute exact transfer function by nodal analysis including pot positions and surrounding stage impedances."
+  },
+  "phase_inverter": {
+    "tube": "7199, pentode voltage gain plus triode phase splitter",
+    "pentode_plate_resistor_ohms": 470000,
+    "pentode_screen_feed_resistor_ohms": 270000,
+    "pentode_cathode_resistor_ohms": 1500,
+    "pentode_cathode_bypass_farads": 1e-7,
+    "pentode_to_triode_coupling_farads": 2e-8,
+    "large_resistors_ohms": [10000000, 3300000],
+    "phase_splitter_resistors_ohms": [47000, 47000],
+    "dc_pin_volts_no_signal": {"1": 360, "2": 105, "3": 60, "6": 1.8, "7": 0, "8": 100, "9": 65},
+    "measurement_note": "20,000 ohms per volt voltmeter; measured high-impedance grid nodes may be loaded by the instrument."
+  },
+  "power_stage": {
+    "tubes": ["7027A", "7027A"],
+    "topology": "fixed-bias push-pull, nominal class AB1",
+    "plate_voltage_v_nominal": 505,
+    "screen_voltage_v_nominal": 500,
+    "control_grid_voltage_v_nominal": -55,
+    "cathode_voltage_v_nominal": 0,
+    "grid_stopper_ohms_each": 1000,
+    "grid_return_ohms_each": 100000,
+    "inverter_to_grid_coupling_farads_each": 5e-8,
+    "plate_current_idle_a_each": null,
+    "screen_current_idle_a_each": null,
+    "grid_conduction_model": null,
+    "tube_characteristic_curves": null,
+    "tube_datasheet": "https://tdsl.duncanamps.com/show.php?des=7027A"
+  },
+  "output_transformer": {
+    "model": "OT-471",
+    "primary_plate_to_plate_ohms_nominal": 4300,
+    "secondary_ohms": [8, 16],
+    "dc_primary_winding_ohms": 300,
+    "dc_secondary_8ohm_winding_ohms": 0.4,
+    "dc_secondary_16ohm_winding_ohms": 0.7,
+    "nominal_turns_ratio_primary_to_8ohm": 23.18,
+    "nominal_turns_ratio_primary_to_16ohm": 16.39,
+    "winding_inductance_h": null,
+    "leakage_inductance_h": null,
+    "parasitic_capacitance_f": null,
+    "core_saturation_curve": null,
+    "negative_feedback": {
+      "present": true,
+      "resistor_from_secondary_ohms_visible": 22000,
+      "other_components_or_topology": "Reference 5/67 schematic directly for precise feedback node and polarity"
+    }
+  },
+  "power_supply": {
+    "rectifier": "5AR4/GZ34",
+    "power_transformer_models": ["PT-109", "PT-12-XA"],
+    "mains_primary_us_vac": 117,
+    "mains_primary_export_vac": 240,
+    "mains_frequency_hz": [50, 60],
+    "high_voltage_secondary_vac_center_tapped_total": 800,
+    "high_voltage_dc_current_rating_a": 0.2,
+    "rectifier_heater_vac": 5,
+    "rectifier_heater_max_a": 3,
+    "other_heaters_vac": 6.3,
+    "other_heaters_max_a": 5,
+    "bplus_idle_vdc": 505,
+    "fixed_bias_nominal_vdc": -55,
+    "high_voltage_filter_capacitors_farads": [3e-5, 4e-5, 4e-5, 4e-5],
+    "bias_filter_capacitor_farads": 0.0001,
+    "bias_filter_voltage_rating_v": 100,
+    "rectifier_diode_bias": "10D6 (600V PIV, 1A per service manual)",
+    "dropping_resistor_values_seen_ohms": [1000, 10000, 22000],
+    "note": "The array lists component values; refer to original schematic for rail connections and order. Do not assume ideal stiff rails in a dynamic simulation."
+  },
+  "cabinet": {
+    "nominal_speaker_diameter_inches": 18,
+    "nominal_load_ohms": 8,
+    "historical_speaker_example": "Cleveland 18-inch ceramic magnet (documented on a 1966 specimen)",
+    "other_historical_speaker_makers_reported": ["Fane", "Goodmans"],
+    "cabinet_type": "Portaflex double-baffle; slotted ports",
+    "historical_example_outer_inches_h_w_d": [24, 24, 18],
+    "speaker_impedance_curve": null,
+    "speaker_thiele_small": null,
+    "cabinet_3d_geometry": null,
+    "measured_ir": null,
+    "measured_frequency_response": null
+  },
+  "unknowns_requiring_characterization": [
+    "precise individual output-tube idle current",
+    "OT-471 magnetizing and leakage inductances / saturation / winding capacitance",
+    "5AR4 conduction curve and power transformer copper resistance",
+    "actual speaker model, Thiele-Small parameters, and cabinet port geometry",
+    "measured cabinet impulse response (IR), microphone and room conditions",
+    "frequency-response curve and harmonic distortion versus input level and controls",
+    "noise, hum, vibration and component aging characteristics"
+  ],
+  "validation": {
+    "reported_dc_meter_loading_ohms_per_volt": 20000,
+    "dc_voltage_tolerance_percent_reported": 5,
+    "resistor_tolerance_percent_general": 10,
+    "validate_at": ["no-signal DC operating point", "sine sweep at low level", "harmonic spectra at rising drive", "power output into modeled 8-ohm load", "sag under bass transients", "tone curves across pot positions"]
+  }
+}

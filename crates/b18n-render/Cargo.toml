@@ -1,0 +1,19 @@
+[package]
+name = "b18n-render"
+description = "Procesado WAV offline y reportes del B-18N 1967"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+b18n-config = { workspace = true }
+b18n-dsp = { workspace = true }
+clap = { workspace = true }
+hound = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

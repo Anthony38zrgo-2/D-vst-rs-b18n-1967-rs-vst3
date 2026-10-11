@@ -1,0 +1,52 @@
+{
+  "target_revision": "1967-05",
+  "base_sha256": "d61d122d232a896b4269dd8769d54f6178540ed3b5afd655c9b403966d2a6a0b",
+  "reason": "Errata del JSON inicial: phase_inverter.pentode_plate_resistor_ohms y pentode_screen_feed_resistor_ohms estaban intercambiados. El esquema 5/67 asigna 270 kΩ a la placa (pin 2) y 470 kΩ a la pantalla (pin 3) de la 7199. El JSON canónico no se edita: esta corrección se aplica antes de construir CircuitDefinition y se registra en la huella efectiva del modelo (docs/B18N_1967_AGENT_BLOCKERS_RESOLUTION.md, apartado 2).",
+  "corrections": [
+    {
+      "path": "phase_inverter.pentode_plate_resistor_ohms",
+      "json_value": 470000,
+      "corrected_value": 270000,
+      "unit": "ohm",
+      "pin": 2,
+      "electrode": "placa del pentodo 7199",
+      "from_node": "carril de alimentación del previo (SCH-567, linea horizontal compartida con el extremo superior de la 47 kΩ de placa del triodo, ~y=330 px del raster)",
+      "to_node": "pin 2 (placa del pentodo, 105 V DC sin señal)",
+      "evidence": "SCH-567 raster 2900x1400 (extracted/b18n-b15nd_schematic_5_67_page01_image01.png): la 270K en x~1117 baja directamente hasta la linea de placa en y~493 y al terminal de placa en y~536. Pinout RCA 7199 (1963): pin 2 = placa del pentodo. Contraste DC con rail de previo ~380 V: Ip=(380-105)/270k ~ 1,0 mA; Ik=1,8/1,5k=1,2 mA ~ Ip+Ig2.",
+      "date": "2026-10-09"
+    },
+    {
+      "path": "phase_inverter.pentode_screen_feed_resistor_ohms",
+      "json_value": 270000,
+      "corrected_value": 470000,
+      "unit": "ohm",
+      "pin": 3,
+      "electrode": "pantalla G2 del pentodo 7199",
+      "from_node": "carril de alimentación del previo (SCH-567, mismo nodo que el extremo superior de la 270 kΩ de placa)",
+      "to_node": "nodo de pantalla: pin 3 (60 V DC sin señal), 150 kΩ a masa y 0,1 uF al catodo",
+      "evidence": "SCH-567 raster: la 470K en x~1186 baja por x=1186; la linea de placa (y=493) la cruza con un 'hop' (no conecta); en y=558 cruza la linea de pantalla sin hop (conecta) y sigue hasta el 0,1 uF en y=628/640. La pantalla (pin 3) sale del tubo en y~558, gira en x=1223 y baja a la 150 kΩ (x~1223, y~850-925) hasta el bus de masa y~931, coherente con la tabla RESISTANCE READINGS del manual (V3/pin 3 = 150 kΩ, equipo apagado). Divisor 470k/150k con Ig2 ~0,2-0,3 mA da ~60 V.",
+      "date": "2026-10-09"
+    }
+  ],
+  "additions": [
+    {
+      "path": "phase_inverter.additional_traced_resistors",
+      "value": [
+        {
+          "ohms": 150000,
+          "from_node": "pin 3 (nodo de pantalla G2 del pentodo 7199)",
+          "to_node": "bus de masa",
+          "evidence": "SCH-567 raster: bajada vertical en x~1223 desde la linea de pantalla (y~558) hasta el cuerpo de la 150K (y~850-925) y de ahi al bus de masa (y~931). Confirmado en la tabla RESISTANCE READINGS del manual: V3/pin 3 a masa = 150 kΩ con el equipo apagado."
+        }
+      ],
+      "evidence": "Componente no listado en el JSON inicial; la traza del raster y la tabla de resistencias del manual lo identifican como la resistencia DC de pantalla a masa del pentodo 7199 (no un componente de la NFB).",
+      "date": "2026-10-09"
+    },
+    {
+      "path": "phase_inverter.triode_supply_v",
+      "value": 460.0,
+      "evidence": "Carril de placa del triodo inversor inferido de las lecturas DC del manual: la misma corriente recorre las dos 47 kΩ (placa y cátodo), luego Vp+Vk = Vrail; con Vp=360 V y Vk=100 V resulta ~460 V. El raster muestra una linea de alimentacion distinta de la del pentodo. Verificado en scripts/spice/b18n_7199_meter_loading.cir (pin 1 = 356 V, pin 8 = 102,7 V).",
+      "date": "2026-10-09"
+    }
+  ]
+}

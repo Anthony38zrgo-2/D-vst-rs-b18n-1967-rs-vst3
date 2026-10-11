@@ -1,0 +1,293 @@
+{
+  "target_revision": "1967-05",
+  "notes": "Parámetros de modelo no históricos: el 6SL7 y el 7027A son ajustes/valores publicados estimados; el 7199 (pentodo y triodo) se ajusta a las anclas del boletín RCA 1963 con origen datasheet. Todos van etiquetados, con unidad, método y fecha; ninguno modifica nominales del JSON canónico.",
+  "assumptions": {
+    "tube_models.6sl7.koren.mu": {
+      "value": 66.0811,
+      "unit": "1",
+      "origin": "estimated",
+      "method": "ajuste Koren a anclas del JSON (triodo 1: 175 V/2.4 V; triodo 2: 185 V/2.0 V; referencia 250 V) + gm/rp de datasheet",
+      "date": "2026-10-09",
+      "source": "scripts/fit_triode_model.py"
+    },
+    "tube_models.6sl7.koren.ex": {
+      "value": 1.098449,
+      "unit": "1",
+      "origin": "estimated",
+      "method": "ajuste Koren (semiempírico, se mantiene cerca de 1.35)",
+      "date": "2026-10-09",
+      "source": "scripts/fit_triode_model.py"
+    },
+    "tube_models.6sl7.koren.kg1": {
+      "value": 816.8934,
+      "unit": "1",
+      "origin": "estimated",
+      "method": "ajuste Koren a las anclas documentadas",
+      "date": "2026-10-09",
+      "source": "scripts/fit_triode_model.py"
+    },
+    "tube_models.6sl7.koren.kp": {
+      "value": 592.0055,
+      "unit": "1",
+      "origin": "estimated",
+      "method": "ajuste Koren a las anclas documentadas",
+      "date": "2026-10-09",
+      "source": "scripts/fit_triode_model.py"
+    },
+    "tube_models.6sl7.koren.kvb": {
+      "value": 300.3225,
+      "unit": "V",
+      "origin": "estimated",
+      "method": "ajuste Koren a las anclas documentadas",
+      "date": "2026-10-09",
+      "source": "scripts/fit_triode_model.py"
+    },
+    "tube_models.6sl7.koren.vct": {
+      "value": 0.0,
+      "unit": "V",
+      "origin": "estimated",
+      "method": "sin potencial de contacto documentado; se fija en 0",
+      "date": "2026-10-09",
+      "source": "scripts/fit_triode_model.py"
+    },
+    "tube_models.6sl7.grid.threshold_v": {
+      "value": -0.3,
+      "unit": "V",
+      "origin": "estimated",
+      "method": "conducción de rejilla aproximada con transición suave (softplus, 0.08 V); umbral ajustable con curvas del datasheet",
+      "date": "2026-10-09",
+      "source": "aproximación del proyecto, documentada"
+    },
+    "tube_models.6sl7.grid.resistance_ohms": {
+      "value": 1000.0,
+      "unit": "ohm",
+      "origin": "estimated",
+      "method": "resistencia equivalente de rejilla en conducción; limita la sobreexcitación sin valores irreales",
+      "date": "2026-10-09",
+      "source": "aproximación del proyecto, documentada"
+    },
+    "tube_models.7027a.koren.mu": {
+      "value": 8.7,
+      "unit": "1",
+      "origin": "datasheet",
+      "method": "parámetros Koren publicados de la 6L6GC (tubo padre de la 7027A; Duncanamps mapea 7027A -> 6L6GC)",
+      "date": "2026-10-09",
+      "source": "Norman Koren, Improved vacuum tube models for SPICE (Tabla 1)"
+    },
+    "tube_models.7027a.koren.ex": {
+      "value": 1.35,
+      "unit": "1",
+      "origin": "datasheet",
+      "method": "parámetros Koren publicados de la 6L6GC",
+      "date": "2026-10-09",
+      "source": "Norman Koren, Improved vacuum tube models for SPICE (Tabla 1)"
+    },
+    "tube_models.7027a.koren.kg1": {
+      "value": 1460.0,
+      "unit": "1",
+      "origin": "datasheet",
+      "method": "parámetros Koren publicados de la 6L6GC",
+      "date": "2026-10-09",
+      "source": "Norman Koren, Improved vacuum tube models for SPICE (Tabla 1)"
+    },
+    "tube_models.7027a.koren.kg2": {
+      "value": 4500.0,
+      "unit": "1",
+      "origin": "datasheet",
+      "method": "parámetros Koren publicados de la 6L6GC (corriente de pantalla)",
+      "date": "2026-10-09",
+      "source": "Norman Koren, Improved vacuum tube models for SPICE (Tabla 1)"
+    },
+    "tube_models.7027a.koren.kp": {
+      "value": 48.0,
+      "unit": "1",
+      "origin": "datasheet",
+      "method": "parámetros Koren publicados de la 6L6GC",
+      "date": "2026-10-09",
+      "source": "Norman Koren, Improved vacuum tube models for SPICE (Tabla 1)"
+    },
+    "tube_models.7027a.koren.kvb": {
+      "value": 12.0,
+      "unit": "V",
+      "origin": "datasheet",
+      "method": "parámetros Koren publicados de la 6L6GC (rodilla de placa)",
+      "date": "2026-10-09",
+      "source": "Norman Koren, Improved vacuum tube models for SPICE (Tabla 1)"
+    },
+    "tube_models.7027a.koren.vct": {
+      "value": 0.0,
+      "unit": "V",
+      "origin": "estimated",
+      "method": "sin potencial de contacto documentado; se fija en 0",
+      "date": "2026-10-09",
+      "source": "proyecto"
+    },
+    "tube_models.7027a.grid.threshold_v": {
+      "value": 0.0,
+      "unit": "V",
+      "origin": "estimated",
+      "method": "conducción de rejilla aproximada con transición suave (softplus, 0.08 V) para la 7027A",
+      "date": "2026-10-09",
+      "source": "aproximación del proyecto, documentada"
+    },
+    "tube_models.7027a.grid.resistance_ohms": {
+      "value": 500.0,
+      "unit": "ohm",
+      "origin": "estimated",
+      "method": "resistencia equivalente de rejilla en conducción; ajustable con curvas del datasheet",
+      "date": "2026-10-09",
+      "source": "aproximación del proyecto, documentada"
+    },
+    "tube_models.7199.triode.koren.mu": {
+      "value": 17.0,
+      "unit": "1",
+      "origin": "datasheet",
+      "method": "amplificación del boletín RCA 1963; ex/kg1/kp ajustados con least_squares (scipy) a Ip=9 mA, gm=2100 umhos y rp=8.1 kΩ en Vp=215 V/Vgk=-8.5 V; kvb fijado a 160 (el único punto de placa no determina la dependencia con Vp; valores mayores disparan la extrapolación a Vp alto)",
+      "date": "2026-10-09",
+      "source": "RCA 7199 DATA 1/2 (7-63); scripts/fit_7199_model.py"
+    },
+    "tube_models.7199.triode.koren.ex": {
+      "value": 0.978282,
+      "unit": "1",
+      "origin": "datasheet",
+      "method": "ajuste least_squares a las anclas del boletín RCA 1963",
+      "date": "2026-10-09",
+      "source": "RCA 7199 DATA 1/2 (7-63); scripts/fit_7199_model.py"
+    },
+    "tube_models.7199.triode.koren.kg1": {
+      "value": 448.917294,
+      "unit": "1",
+      "origin": "datasheet",
+      "method": "ajuste least_squares a las anclas del boletín RCA 1963",
+      "date": "2026-10-09",
+      "source": "RCA 7199 DATA 1/2 (7-63); scripts/fit_7199_model.py"
+    },
+    "tube_models.7199.triode.koren.kp": {
+      "value": 272.472003,
+      "unit": "1",
+      "origin": "datasheet",
+      "method": "ajuste least_squares a las anclas del boletín RCA 1963",
+      "date": "2026-10-09",
+      "source": "RCA 7199 DATA 1/2 (7-63); scripts/fit_7199_model.py"
+    },
+    "tube_models.7199.triode.koren.kvb": {
+      "value": 160.0,
+      "unit": "V",
+      "origin": "estimated",
+      "method": "fijado en 160 al no determinar el boletín la dependencia con Vp con un solo punto de placa; elegido para reproducir el reposo del B-18N (~2.1 mA a Vgk≈-20 V, Vp≈350 V)",
+      "date": "2026-10-09",
+      "source": "scripts/fit_7199_model.py"
+    },
+    "tube_models.7199.triode.koren.vct": {
+      "value": 0.0,
+      "unit": "V",
+      "origin": "estimated",
+      "method": "sin potencial de contacto documentado; se fija en 0",
+      "date": "2026-10-09",
+      "source": "proyecto"
+    },
+    "tube_models.7199.triode.grid.threshold_v": {
+      "value": -0.3,
+      "unit": "V",
+      "origin": "estimated",
+      "method": "conducción de rejilla aproximada (softplus, 0.08 V); el reposo del inversor queda lejos del umbral",
+      "date": "2026-10-09",
+      "source": "aproximación del proyecto, documentada"
+    },
+    "tube_models.7199.triode.grid.resistance_ohms": {
+      "value": 1000.0,
+      "unit": "ohm",
+      "origin": "estimated",
+      "method": "resistencia equivalente de rejilla en conducción",
+      "date": "2026-10-09",
+      "source": "aproximación del proyecto, documentada"
+    },
+    "tube_models.7199.pentode.koren.mu": {
+      "value": 22.279549,
+      "unit": "1",
+      "origin": "datasheet",
+      "method": "ajuste least_squares (scipy) a las anclas del boletín RCA 1963: (100 V/50 V/-1.1 V -> 1.1 mA, 0.35 mA de pantalla), (220 V/130 V/-0.775 V -> 12.5 mA, 3.5 mA), corte -4 V y gm/rp del punto A1",
+      "date": "2026-10-09",
+      "source": "RCA 7199 DATA 1/2 (7-63); scripts/fit_7199_model.py"
+    },
+    "tube_models.7199.pentode.koren.ex": {
+      "value": 1.63827,
+      "unit": "1",
+      "origin": "datasheet",
+      "method": "ajuste least_squares a las anclas del boletín RCA 1963",
+      "date": "2026-10-09",
+      "source": "RCA 7199 DATA 1/2 (7-63); scripts/fit_7199_model.py"
+    },
+    "tube_models.7199.pentode.koren.kg1": {
+      "value": 3712.06538,
+      "unit": "1",
+      "origin": "datasheet",
+      "method": "ajuste least_squares a las anclas del boletín RCA 1963",
+      "date": "2026-10-09",
+      "source": "RCA 7199 DATA 1/2 (7-63); scripts/fit_7199_model.py"
+    },
+    "tube_models.7199.pentode.koren.kg2": {
+      "value": 3807.560112,
+      "unit": "1",
+      "origin": "datasheet",
+      "method": "ajuste least_squares a las anclas de corriente de pantalla del boletín RCA 1963",
+      "date": "2026-10-09",
+      "source": "RCA 7199 DATA 1/2 (7-63); scripts/fit_7199_model.py"
+    },
+    "tube_models.7199.pentode.koren.kp": {
+      "value": 66.513832,
+      "unit": "1",
+      "origin": "datasheet",
+      "method": "ajuste least_squares a las anclas del boletín RCA 1963",
+      "date": "2026-10-09",
+      "source": "RCA 7199 DATA 1/2 (7-63); scripts/fit_7199_model.py"
+    },
+    "tube_models.7199.pentode.koren.kvb": {
+      "value": 12.522225,
+      "unit": "V",
+      "origin": "datasheet",
+      "method": "ajuste least_squares (rodilla de placa; reproduce rp=1 MΩ en el punto A1 de baja tensión)",
+      "date": "2026-10-09",
+      "source": "RCA 7199 DATA 1/2 (7-63); scripts/fit_7199_model.py"
+    },
+    "tube_models.7199.pentode.koren.vct": {
+      "value": 0.0,
+      "unit": "V",
+      "origin": "estimated",
+      "method": "sin potencial de contacto documentado; se fija en 0",
+      "date": "2026-10-09",
+      "source": "proyecto"
+    },
+    "tube_models.7199.pentode.grid.threshold_v": {
+      "value": 0.0,
+      "unit": "V",
+      "origin": "estimated",
+      "method": "conducción de rejilla aproximada (softplus, 0.08 V) para el pentodo de la 7199",
+      "date": "2026-10-09",
+      "source": "aproximación del proyecto, documentada"
+    },
+    "tube_models.7199.pentode.grid.resistance_ohms": {
+      "value": 500.0,
+      "unit": "ohm",
+      "origin": "estimated",
+      "method": "resistencia equivalente de rejilla en conducción",
+      "date": "2026-10-09",
+      "source": "aproximación del proyecto, documentada"
+    },
+    "tube_models.preamp_supply_v": {
+      "value": 380.0,
+      "unit": "V",
+      "origin": "estimated",
+      "method": "derivado de tensiones típicas del JSON: 175 V + (2.4 V/5.6 kΩ)·470 kΩ = 376 V; 185 V + (2.0 V/2.2 kΩ)·220 kΩ = 385 V; se redondea a 380 V",
+      "date": "2026-10-09",
+      "source": "assets/models/B18N_1967_simulation_parameters.json"
+    }
+  },
+  "measured": {},
+  "provenance": [
+    "RCA 6SL7-GT datasheet (referencia de pequeña señal a 250 V recogida en el JSON histórico)",
+    "RCA 7199 DATA 1/2 (7-63), Medium-Mu Triode - Sharp-Cutoff Pentode (anclas de pentodo y triodo)",
+    "tensiones típicas de reposo del esquema 5/67 recogidas en el JSON histórico",
+    "Norman Koren, Improved vacuum tube models for SPICE (estructura de las ecuaciones)"
+  ]
+}

@@ -1,0 +1,19 @@
+[package]
+name = "b18n-plugin"
+description = "Adaptador VST3 (NIH-plug) del B-18N/B-15ND 1967"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["vst3"]
+vst3 = ["nih_plug/vst3"]
+
+[dependencies]
+b18n-config.workspace = true
+b18n-dsp.workspace = true
+nih_plug.workspace = true

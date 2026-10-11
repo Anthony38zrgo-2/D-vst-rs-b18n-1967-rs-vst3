@@ -1,0 +1,40 @@
+* B-18N/B-15ND 1967 - V3 (7199, pentodo): R(pin 3, masa) con fuentes anuladas
+*
+* Fuentes: SCH-567 (carril de previo, 470K a pantalla, 150K a masa, 0.1uF a
+* catodo, 270K a placa) y SM-1967 (RESISTANCE READINGS: V3/pin 3 = 150 k).
+* Procedimiento de medidas resistivas: fuentes de DC anuladas; se inyecta 1 A
+* de masa a pin3 y v(pin3) es la resistencia equivalente buscada.
+*
+* Variante A (equipo apagado / standby abierto): el carril de previo no tiene
+*   camino DC a masa (rectificador en frio, llaves abiertas) -> R ~ 150 k.
+* Variante B (cota inferior de contraste): carril de previo referido a masa
+*   -> R = 150k || 470k ~ 113.7 k, fuera de la lectura del manual; confirma
+*   que el caso apagado exige el carril flotante.
+*
+* El tubo no conduce con el equipo apagado; los capacitores quedan abiertos en
+* el punto de operacion DC.
+
+* --- Red de pantalla trazada (SCH-567) ---
+r150 pin3 0 150k
+r470 rail pin3 470k
+c01 pin3 cathode 0.1u
+
+* --- Referencia del carril de previo: rsw modela el estado de las llaves ---
+rsw rail 0 1T
+
+* --- Resto del nodo V3 (documenta el netlist; no afecta a R(pin3,masa)) ---
+r270 rail plate 270k
+r15 cathode 0 1.5k
+
+* --- Inyeccion de prueba ---
+iinj 0 pin3 dc 1
+
+.op
+.control
+run
+print v(pin3) v(rail)
+alter rsw = 1e-3
+run
+print v(pin3) v(rail)
+.endc
+.end

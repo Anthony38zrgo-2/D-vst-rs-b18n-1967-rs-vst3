@@ -1,0 +1,16 @@
+[package]
+name = "b18n-config"
+description = "Carga, validación y mapeo del JSON histórico B-18N 1967"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+b18n-dsp = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

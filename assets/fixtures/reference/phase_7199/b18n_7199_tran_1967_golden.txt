@@ -1,0 +1,9 @@
+# golden: transitorio del inversor 7199 (1 kHz, 0.2 V en la rejilla, con NFB 22 k)
+# netlist: scripts/spice/b18n_7199_tran_1967.cir
+# simulador: ngspice-47 (Windows x64, 2026-08-11)
+# ventana de medida: 15-20 ms (regimen estable)
+# valores = desviacion respecto del reposo con NFB (pin1 356.0569 V, pin8 102.6848 V)
+peak_up_v = 15.0421
+min_up_v = -16.1739
+peak_down_v = 16.3372
+min_down_v = -15.1946

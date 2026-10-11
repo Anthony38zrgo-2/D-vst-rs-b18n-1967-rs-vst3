@@ -1,0 +1,39 @@
+* B-18N/B-15ND 1967 - red de tono (recuadro Printed CKT, SCH-567)
+* Referencia legible de la topologia trazada; el barrido golden completo
+* (25 combinaciones x 31 frecuencias) lo genera tone_stack_sweep.py con este
+* mismo netlist y potenciometros variables.
+*
+* Nodos: in (entrada tras el acoplo), b (extremo superior del pote de graves),
+* w (cursor de graves / nodo comun), c (extremo inferior del pote de graves),
+* t1 (extremo superior del pote de agudos), t2 (extremo inferior),
+* out (cursor de agudos).
+*
+* Excitacion Norton unitaria (1 A AC en 'in'): H = v(out)/v(in), igual que los
+* solvers Rust/numpy. Rfuente = 100 kOhm a masa; Rcarga = 270 kOhm.
+* Potes de 1 MOhm lineales al 50 %: r_bw = r_wc = r_t_out = r_out_t2 = 500 kOhm.
+*
+* Procedencia de cada componente: docs/CIRCUIT_TRACEABILITY.md.
+
+iin 0 in ac 1
+rsource in 0 100k
+
+rseries in b 220k
+ct1 in t1 0.00047u
+cb_top b w 0.001u
+cb_bot c w 0.01u
+rbw b w 500k
+rwc w c 500k
+rstop c 0 22k
+rcut w 0 270k
+rmid w t1 120k
+rt_out t1 out 500k
+rout_t2 out t2 500k
+ct2 t2 0 0.0047u
+rload out 0 270k
+
+.control
+ac dec 12 20 20k
+let h = v(out)/v(in)
+print mag(h) ph(h)
+.endc
+.end

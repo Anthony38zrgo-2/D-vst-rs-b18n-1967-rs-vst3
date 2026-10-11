@@ -1,0 +1,17 @@
+[package]
+name = "b18n-dsp"
+description = "Núcleo DSP del Ampeg B-18N/B-15ND rev. 5/67"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+# Ciclo permitido por Cargo: solo para cargar el JSON canónico en tests de
+# integración (el crate no depende de b18n-config en compilación normal).
+b18n-config = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

@@ -1,0 +1,72 @@
+* B-18N/B-15ND 1967 - V3 (7199): reposo DC con NFB (22 k a la toma de 16 ohm)
+*
+* Fuentes: SCH-567 (topologia), SM-1967 (DC VOLTAGE READINGS, 20000 ohm/V) y
+* RCA 7199 DATA 1/2 (7-63) para los modelos de valvula.
+* Modelos Koren ajustados por scripts/fit_7199_model.py (anclas del boletin).
+*
+* Carriles:
+*   - Pentodo desde el nodo de previo: 380 V (tension derivada de las etapas
+*     6SL7 en la calibracion; el esquema lo alimenta desde el carril comun).
+*   - Triodo desde un nodo intermedio: 460 V. Se infiere de las lecturas
+*     Vp=360 V + Vk=100 V (la misma corriente circula por las dos 47 kOhm,
+*     luego Vp+Vk = Vrail). El raster muestra una linea de alimentacion
+*     distinta para la 47 kOhm del triodo.
+*
+* Topologia de la rejilla del triodo (trazada en el raster):
+*   placa del pentodo -> 0.02 uF -> rejilla; 10 MOhm de la PLACA del triodo a
+*   la rejilla (malla 10M/3.3M): reparto DC con realimentacion de continua;
+*   3.3 MOhm de rejilla a masa.
+*
+* La carga del medidor (20000 ohm/V) se modela con `rmeter` en pin 9; las
+* lecturas del manual (65 V) corresponden al rango de 250 V (~5 MOhm).
+
+.param meter=1e12
+
+* --- Carriles ---
+vp rail_p 0 dc 380
+vt rail_t 0 dc 460
+
+* --- Pentodo: alimentacion y red de catodo/pantalla ---
+r270 rail_p pin2 270k
+r470 rail_p pin3 470k
+r150 pin3 0 150k
+c01 pin3 pin6 0.1u
+r15 pin6 0 1.5k
+rg7 pin7 0 5.6meg
+* Realimentacion negativa: 22 k desde la toma de 16 ohm (secundario a masa en DC)
+rfb pin6 0 22k
+
+* --- Acoplo y polarizacion de la rejilla del triodo ---
+c02 pin2 pin9 0.02u
+r10m pin1 pin9 10meg
+r33m pin9 0 3.3meg
+
+* --- Triodo inversor de carga dividida ---
+r47p rail_t pin1 47k
+r47k pin8 0 47k
+
+* --- Medidor de continua (abierto por defecto) ---
+rmeter pin9 0 {meter}
+
+* --- Valvulas (Koren; mismas ecuaciones que el DSP) ---
+xpent pin2 pin3 pin7 pin6 k7199p
+xtri pin1 pin9 pin8 k7199t
+
+.subckt k7199p p g2 g k params: mu=22.2795 ex=1.63827 kg1=3712.07 kp=66.5138 kvb=12.5222 kg2=3807.56
+Bvp vp 0 V = {max(v(p,k),0)}
+Be1 e1 0 V = {v(g2,k)/kp*ln(1+exp(kp*(1/mu+v(g,k)/v(g2,k))))}
+Bip p k I = {2*pwr(max(v(e1),0),ex)/kg1*atan(v(vp)/kvb)}
+Big2 g2 k I = {pwr(max(v(g2,k)/mu+v(g,k),0),ex)/kg2}
+.ends
+
+.subckt k7199t p g k params: mu=17 ex=0.978282 kg1=448.917 kp=272.472 kvb=160
+Bvp vp 0 V = {max(v(p,k),0)}
+Be1 e1 0 V = {v(vp)/kp*ln(1+exp(kp*(1/mu+v(g,k)/sqrt(kvb+v(vp)*v(vp)))))}
+Bip p k I = {pwr(max(v(e1),0),ex)/kg1}
+.ends
+
+.control
+op
+print v(pin1) v(pin2) v(pin3) v(pin6) v(pin7) v(pin8) v(pin9)
+.endc
+.end

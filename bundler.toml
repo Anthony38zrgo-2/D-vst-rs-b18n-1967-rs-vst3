@@ -1,0 +1,3 @@
+# La clave debe coincidir con el nombre de paquete (`b18n-plugin`).
+[b18n-plugin]
+name = "B18N 67"
