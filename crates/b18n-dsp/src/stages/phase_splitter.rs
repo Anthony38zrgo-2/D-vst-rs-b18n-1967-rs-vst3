@@ -11,19 +11,18 @@
 //! - **Triodo** split-load 47 kΩ/47 kΩ desde el carril trazado (~460 V).
 //! - **Salidas** por 0.05 µF hacia las rejillas de las 7027A.
 //!
-//! Aproximación declarada (véase `docs/MODEL_ASSUMPTIONS.md`): el acoplo
-//! pentodo→triodo se modela como paso alto de un polo con la impedancia de
-//! fuente de placa y la red de rejilla; el reposo sí resuelve la malla
-//! 10 M/3.3 M con realimentación de continua. Los solves por muestra usan
-//! iteración de punto fijo/bisección acotadas, sin asignaciones.
-
-use std::f64::consts::PI;
+//! Desde **B18-008** el acoplo pentodo→triodo se resuelve de forma **acoplada
+//! por muestra** (Newton 6D): el capacitor de 0.02 µF (TPT), la malla
+//! 10 MΩ/3.3 MΩ y la conducción de rejilla del triodo forman parte del mismo
+//! sistema que el pentodo, con la placa del triodo realimentando a su rejilla
+//! en la misma muestra. La aproximación anterior (paso alto de un polo con
+//! `alpha` congelado en el reposo) queda solo como **respaldo** si el solve
+//! acoplado no converge. Los solves por muestra no asignan memoria.
 
 use crate::circuit::CircuitDefinition;
 use crate::numerics::discretization::TptCapacitor;
 use crate::numerics::nonlinear::{self as newton, NewtonConfig};
 use crate::stages::tube_models::{KorenPentodeModel, KorenTriodeModel};
-use crate::utilities::filters::OnePoleHighPass;
 
 /// Newton declarado del pentodo (Ola 8): residuo hasta 1e-9 entre volvieros
 /// y amperios (6 dígitos, comparable al ruido de bisección anterior); itera
@@ -32,6 +31,18 @@ const PENTODE_NEWTON: NewtonConfig = NewtonConfig {
     max_iterations: 40,
     tolerance: 1e-6,
     residual_tolerance: 1e-9,
+    max_step: 20.0,
+    max_backtracks: 10,
+};
+
+/// Newton del solve acoplado (B18-008). Más fino que el del pentodo: el
+/// capacitor de acoplo integra el error de la rejilla/placa muestra a muestra,
+/// así que el residuo baja a 1e-10 (con el refinado de rejilla posterior) y el
+/// paso se exige a 1e-8.
+const COUPLED_NEWTON: NewtonConfig = NewtonConfig {
+    max_iterations: 48,
+    tolerance: 1e-8,
+    residual_tolerance: 1e-10,
     max_step: 20.0,
     max_backtracks: 10,
 };
@@ -102,20 +113,21 @@ pub struct PhaseInverter7199 {
     screen_v: f64,
     cathode_v: f64,
     screen_cap: TptCapacitor,
-    coupling: OnePoleHighPass,
-    coupling_gain: f64,
-    coupling_conductance: f64,
+    /// Capacitor de acoplo de 0.02 µF pentodo→rejilla del triodo (TPT).
+    coupling_cap: TptCapacitor,
     source_upper_ohms: f64,
     source_lower_ohms: f64,
     drive_upper: f64,
     drive_lower: f64,
-    /// Última solución del sistema acoplado del pentodo `[Vs, Vc, Ip]`
-    /// (arranque cálido del sample anterior).
+    /// Estado acoplado `[Vs, Vc, Ip, Vg, It, Vk]` (arranque cálido).
+    coupled_state: [f64; 6],
+    /// Semilla del estado acoplado en el reposo.
+    coupled_state_reset: [f64; 6],
+    /// Estado del pentodo `[Vs, Vc, Ip]` para el respaldo.
     pentode_state: [f64; 3],
-    /// Semilla del sistema en el punto de reposo (reinicio ante arranque
-    /// no finito, que no debería ocurrir pero se cubre).
+    /// Semilla del pentodo en el punto de reposo.
     pentode_state_reset: [f64; 3],
-    /// Última corriente del triodo split-load (arranque cálido).
+    /// Última corriente del triodo split-load (arranque cálido del respaldo).
     triode_current_a: f64,
     /// Iteraciones y convergencia del último solve del pentodo (diagnóstico).
     last_iter_count: usize,
@@ -196,17 +208,10 @@ impl PhaseInverter7199 {
         config: PhaseInverter7199Config,
     ) -> Self {
         let dt = 1.0 / config.sample_rate_hz;
-        let (operating_point, source_upper, source_lower, alpha) = solve_operating_point(
+        let (operating_point, source_upper, source_lower, _alpha) = solve_operating_point(
             &pentode, &triode, &config,
         )
         .unwrap_or((PhaseInverterOperatingPoint::default(), 0.0, 0.0, 0.0));
-
-        // Acoplo pentodo→triodo (aproximación declarada): a media banda la
-        // rejilla del triodo sigue a la placa del pentodo (la 10 MΩ retorna a
-        // la placa del triodo, que se mueve invertida con α y casi compensa la
-        // carga). El polo efectivo usa 1/3.3 M + (1+|α|)/10 M y ganancia ~1.
-        let coupling_conductance =
-            1.0 / config.grid_leak_ground_ohms + (1.0 + alpha.abs()) / config.grid_leak_plate_ohms;
 
         let mut stage = Self {
             config,
@@ -217,30 +222,16 @@ impl PhaseInverter7199 {
             screen_v: operating_point.pentode_screen_v,
             cathode_v: operating_point.pentode_cathode_v,
             screen_cap: TptCapacitor::new(config.screen_bypass_farads, dt),
-            coupling: OnePoleHighPass::new(
-                coupling_conductance / (2.0 * PI * config.coupling_farads),
-                config.sample_rate_hz,
-            ),
-            coupling_gain: 1.0,
-            coupling_conductance,
+            coupling_cap: TptCapacitor::new(config.coupling_farads, dt),
             source_upper_ohms: source_upper,
             source_lower_ohms: source_lower,
             drive_upper: 0.0,
             drive_lower: 0.0,
-            pentode_state: [
-                operating_point.pentode_screen_v,
-                operating_point.pentode_cathode_v,
-                (config.preamp_supply_v - operating_point.pentode_plate_v)
-                    / config.pentode_plate_ohms,
-            ],
-            pentode_state_reset: [
-                operating_point.pentode_screen_v,
-                operating_point.pentode_cathode_v,
-                (config.preamp_supply_v - operating_point.pentode_plate_v)
-                    / config.pentode_plate_ohms,
-            ],
-            triode_current_a: (config.triode_supply_v - operating_point.triode_plate_v)
-                / config.triode_plate_load_ohms,
+            coupled_state: [0.0; 6],
+            coupled_state_reset: [0.0; 6],
+            pentode_state: [0.0; 3],
+            pentode_state_reset: [0.0; 3],
+            triode_current_a: 0.0,
             last_iter_count: 0,
             last_converged: true,
             latest_failure: None,
@@ -310,20 +301,30 @@ impl PhaseInverter7199 {
     /// cálidos en el punto de reposo).
     pub fn reset(&mut self) {
         let op = self.operating_point;
+        let plate_current =
+            (self.config.preamp_supply_v - op.pentode_plate_v) / self.config.pentode_plate_ohms;
+        let triode_current =
+            (self.config.triode_supply_v - op.triode_plate_v) / self.config.triode_plate_load_ohms;
         self.plate_v = op.pentode_plate_v;
         self.screen_v = op.pentode_screen_v;
         self.cathode_v = op.pentode_cathode_v;
-        self.pentode_state = [
+        self.pentode_state = [op.pentode_screen_v, op.pentode_cathode_v, plate_current];
+        self.pentode_state_reset = self.pentode_state;
+        self.coupled_state = [
             op.pentode_screen_v,
             op.pentode_cathode_v,
-            (self.config.preamp_supply_v - op.pentode_plate_v) / self.config.pentode_plate_ohms,
+            plate_current,
+            op.triode_grid_v,
+            triode_current,
+            op.triode_cathode_v,
         ];
-        self.pentode_state_reset = self.pentode_state;
-        self.triode_current_a =
-            (self.config.triode_supply_v - op.triode_plate_v) / self.config.triode_plate_load_ohms;
+        self.coupled_state_reset = self.coupled_state;
+        self.triode_current_a = triode_current;
         self.screen_cap
             .preset_voltage(op.pentode_screen_v - op.pentode_cathode_v);
-        self.coupling.reset();
+        // Tensión de reposo del acoplo: placa del pentodo − rejilla del triodo.
+        self.coupling_cap
+            .preset_voltage(op.pentode_plate_v - op.triode_grid_v);
         self.drive_upper = 0.0;
         self.drive_lower = 0.0;
         self.convergence_failures = 0;
@@ -334,23 +335,243 @@ impl PhaseInverter7199 {
     /// de placa y cátodo del triodo (el acoplo de 0.05 µF y la memoria de
     /// bloqueo viven en la etapa de potencia).
     pub fn process(&mut self, grid_ac_v: f64, feedback_v: f64) -> (f64, f64) {
-        let (plate, screen, cathode, converged) = self.solve_pentode(grid_ac_v, feedback_v);
-        if !converged {
+        let solved = self
+            .solve_coupled(grid_ac_v, feedback_v)
+            .or_else(|| self.solve_fallback(grid_ac_v, feedback_v));
+        let Some((plate, screen, cathode, grid_v, triode_plate, triode_cathode)) = solved else {
+            // Conservar el último estado válido (política del motor, sin NaN).
             self.convergence_failures += 1;
-        }
+            return (self.drive_upper, self.drive_lower);
+        };
+
         self.plate_v = plate;
         self.screen_v = screen;
         self.cathode_v = cathode;
         self.screen_cap.update(screen - cathode);
-
-        let plate_ac = plate - self.operating_point.pentode_plate_v;
-        let grid_ac = self.coupling.process(plate_ac) * self.coupling_gain;
-        let grid_v = self.operating_point.triode_grid_v + grid_ac;
-
-        let (triode_plate, triode_cathode) = self.solve_triode(grid_v);
+        self.coupling_cap.update(plate - grid_v);
         self.drive_upper = triode_plate - self.operating_point.triode_plate_v;
         self.drive_lower = triode_cathode - self.operating_point.triode_cathode_v;
         (self.drive_upper, self.drive_lower)
+    }
+
+    /// Solve **acoplado** de 6 incógnitas (B18-008):
+    /// `x = [Vs, Vc, Ip, Vg, It, Vk]` con
+    ///
+    /// - pantalla y cátodo del pentodo (como antes, capacitor TPT de 0.1 µF),
+    /// - placa del pentodo implícita en `Ip` por su red **real** (270 kΩ y el
+    ///   capacitor de acoplo de 0.02 µF hacia la rejilla del triodo),
+    /// - rejilla del triodo con la malla 10 MΩ placa-rejilla / 3.3 MΩ a masa y
+    ///   la conducción de rejilla `Ig(Vgk)`,
+    /// - triodo split-load con placa y cátodo realimentados en la misma
+    ///   muestra (`Vp = Bt − 47k·Ip`, `Vk = 47k·(Ip + Ig)`).
+    ///
+    /// Jacobiano **analítico**; arranque cálido del sample anterior. Devuelve
+    /// `None` si no converge (el llamador usa el respaldo declarado).
+    fn solve_coupled(
+        &mut self,
+        grid_ac_v: f64,
+        feedback_v: f64,
+    ) -> Option<(f64, f64, f64, f64, f64, f64)> {
+        let supply = self.config.preamp_supply_v;
+        let feed = self.config.pentode_screen_feed_ohms;
+        let screen_ground = self.config.pentode_screen_ground_ohms;
+        let cathode_resistor = self.config.pentode_cathode_ohms;
+        let plate_resistor = self.config.pentode_plate_ohms;
+        let screen_g = self.screen_cap.conductance();
+        let screen_ieq = self.screen_cap.companion_current();
+        let screen_den = 1.0 / feed + 1.0 / screen_ground + screen_g;
+        let feedback_g = self
+            .config
+            .feedback_resistor_ohms
+            .map(|ohms| 1.0 / ohms.max(1.0))
+            .unwrap_or(0.0);
+        let coupling_g = self.coupling_cap.conductance();
+        let coupling_ieq = self.coupling_cap.companion_current();
+        let plate_series_inv = 1.0 / (1.0 / plate_resistor + coupling_g);
+        let grid_plate_r = self.config.grid_leak_plate_ohms.max(1.0);
+        let grid_ground_r = self.config.grid_leak_ground_ohms.max(1.0);
+        let triode_supply = self.config.triode_supply_v;
+        let triode_plate_load = self.config.triode_plate_load_ohms;
+        let triode_cathode_load = self.config.triode_cathode_load_ohms;
+        // La 10 MΩ placa-rejilla también carga la placa del triodo: la caída en
+        // la 47 kΩ la recorre `Ip + (Vp − Vg)/10M` (resuelto implícitamente).
+        let plate_ratio = triode_plate_load / grid_plate_r;
+        let plate_den = 1.0 + plate_ratio;
+        let d_plate_triode_d_current = -triode_plate_load / plate_den;
+        let d_plate_triode_d_grid = plate_ratio / plate_den;
+
+        let residual_and_jacobian =
+            |state: &[f64], out: &mut [f64], jacobian: &mut [[f64; 6]; 6]| {
+                let screen = state[0];
+                let cathode = state[1];
+                let plate_current = state[2];
+                let grid = state[3];
+                let triode_current = state[4];
+                let triode_cathode = state[5];
+
+                // Placa del pentodo implícita en `Ip` con la carga real del
+                // acoplo: `(B/Rp + Gc·Vg + Ieqc − Ip)/(1/Rp + Gc)`.
+                let plate = (supply / plate_resistor + coupling_g * grid + coupling_ieq
+                    - plate_current)
+                    * plate_series_inv;
+                let d_plate_d_grid = coupling_g * plate_series_inv;
+                let d_plate_d_current = -plate_series_inv;
+
+                let screen_cathode = screen - cathode;
+                let grid_cathode = grid_ac_v - cathode;
+                let pentode = self.pentode.currents_with_slopes(
+                    plate - cathode,
+                    screen_cathode,
+                    grid_cathode,
+                );
+
+                let cap_screen_current = screen_g * screen_cathode - screen_ieq;
+                let feedback_current = (feedback_v - cathode) * feedback_g;
+                out[0] = screen
+                    - (supply / feed + screen_g * cathode + screen_ieq - pentode.screen_a)
+                        / screen_den;
+                out[1] = cathode_resistor
+                    * (plate_current + pentode.screen_a + cap_screen_current + feedback_current)
+                    - cathode;
+                out[2] = pentode.plate_a - plate_current;
+
+                // Placa del triodo: `(Bt − Ra·It + (Ra/10M)·Vg)/(1 + Ra/10M)`.
+                let triode_plate = (triode_supply - triode_plate_load * triode_current
+                    + plate_ratio * grid)
+                    / plate_den;
+                let (triode_plate_a, d_triode_d_pk, d_triode_d_gk) =
+                    self.triode.plate_current_with_slopes(
+                        triode_plate - triode_cathode,
+                        grid - triode_cathode,
+                    );
+                let (grid_current, d_grid_current_d_gk) =
+                    self.triode.grid_current_with_slope(grid - triode_cathode);
+
+                let cap_coupling_current = coupling_g * (plate - grid) - coupling_ieq;
+                out[3] = cap_coupling_current + (triode_plate - grid) / grid_plate_r
+                    - grid / grid_ground_r
+                    - grid_current;
+                out[4] = triode_plate_a - triode_current;
+                out[5] = triode_cathode - triode_cathode_load * (triode_current + grid_current);
+
+                // Jacobiano 6×6. Columnas: [Vs, Vc, Ip, Vg, It, Vk].
+                let d_ig2_d_cathode = -pentode.d_screen_d_screen - pentode.d_screen_d_grid;
+                jacobian[0] = [
+                    1.0 + pentode.d_screen_d_screen / screen_den,
+                    -(screen_g + pentode.d_screen_d_screen + pentode.d_screen_d_grid) / screen_den,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                ];
+                jacobian[1] = [
+                    cathode_resistor * (pentode.d_screen_d_screen + screen_g),
+                    cathode_resistor * (d_ig2_d_cathode - screen_g - feedback_g) - 1.0,
+                    cathode_resistor,
+                    0.0,
+                    0.0,
+                    0.0,
+                ];
+                jacobian[2] = [
+                    pentode.d_plate_d_screen,
+                    -(pentode.d_plate_d_screen + pentode.d_plate_d_grid + pentode.d_plate_d_plate),
+                    pentode.d_plate_d_plate * d_plate_d_current - 1.0,
+                    pentode.d_plate_d_plate * d_plate_d_grid,
+                    0.0,
+                    0.0,
+                ];
+                jacobian[3] = [
+                    0.0,
+                    0.0,
+                    coupling_g * d_plate_d_current,
+                    coupling_g * (d_plate_d_grid - 1.0)
+                        + (d_plate_triode_d_grid - 1.0) / grid_plate_r
+                        - 1.0 / grid_ground_r
+                        - d_grid_current_d_gk,
+                    d_plate_triode_d_current / grid_plate_r,
+                    d_grid_current_d_gk,
+                ];
+                jacobian[4] = [
+                    0.0,
+                    0.0,
+                    0.0,
+                    d_triode_d_pk * d_plate_triode_d_grid + d_triode_d_gk,
+                    d_triode_d_pk * d_plate_triode_d_current - 1.0,
+                    -d_triode_d_pk - d_triode_d_gk,
+                ];
+                jacobian[5] = [
+                    0.0,
+                    0.0,
+                    0.0,
+                    -triode_cathode_load * d_grid_current_d_gk,
+                    -triode_cathode_load,
+                    1.0 + triode_cathode_load * d_grid_current_d_gk,
+                ];
+            };
+
+        let mut x = self.coupled_state;
+        if !x.iter().all(|value| value.is_finite()) {
+            x = self.coupled_state_reset;
+        }
+        let report =
+            newton::solve_with_jacobian::<6, _>(&mut x, residual_and_jacobian, &COUPLED_NEWTON);
+        self.last_iter_count = report.iterations;
+        self.last_converged = report.converged;
+        self.latest_failure = report.failure;
+        if report.converged && x.iter().all(|value| value.is_finite()) {
+            let plate = (supply / plate_resistor + coupling_g * x[3] + coupling_ieq - x[2])
+                * plate_series_inv;
+            let triode_plate =
+                (triode_supply - triode_plate_load * x[4] + plate_ratio * x[3]) / plate_den;
+            // Refina la rejilla con la Ig ya convergida: el criterio de parada
+            // del Newton (1e-9 A) deja ~1e-9·Rth (≈0,1 µV con Rth≈130 Ω) que
+            // el capacitor de acoplo integraría como deriva de continua.
+            let grid_current = self.triode.grid_current_with_slope(x[3] - x[5]).0;
+            let grid_den = coupling_g + 1.0 / grid_plate_r + 1.0 / grid_ground_r;
+            let grid = (coupling_g * plate - coupling_ieq + triode_plate / grid_plate_r
+                - grid_current)
+                / grid_den;
+            x[3] = grid;
+            self.coupled_state = x;
+            self.pentode_state = [x[0], x[1], x[2]];
+            self.triode_current_a = x[4];
+            return Some((plate, x[0], x[1], grid, triode_plate, x[5]));
+        }
+        None
+    }
+
+    /// Respaldo declarado (aproximación de un polo de la Ola 8): rejilla del
+    /// triodo resuelta **linealmente** desde la red (sin conducción) con la
+    /// placa del pentodo y la corriente del triodo del sample anterior, solve
+    /// 3D del pentodo con la carga real del acoplo y solve 1D del triodo. Solo
+    /// se usa si el solve acoplado no converge.
+    fn solve_fallback(
+        &mut self,
+        grid_ac_v: f64,
+        feedback_v: f64,
+    ) -> Option<(f64, f64, f64, f64, f64, f64)> {
+        let coupling_g = self.coupling_cap.conductance();
+        let coupling_ieq = self.coupling_cap.companion_current();
+        let r10 = self.config.grid_leak_plate_ohms.max(1.0);
+        let r33 = self.config.grid_leak_ground_ohms.max(1.0);
+        let triode_current = self.triode_current_a.clamp(
+            0.0,
+            self.config.triode_supply_v
+                / (self.config.triode_plate_load_ohms + self.config.triode_cathode_load_ohms),
+        );
+        let triode_plate_prev =
+            self.config.triode_supply_v - self.config.triode_plate_load_ohms * triode_current;
+        let grid_den = coupling_g + 1.0 / r10 + 1.0 / r33;
+        let grid = (coupling_g * self.plate_v - coupling_ieq + triode_plate_prev / r10) / grid_den;
+
+        let (plate, screen, cathode, converged) =
+            self.solve_pentode_load(grid_ac_v, feedback_v, coupling_g, coupling_ieq, grid);
+        if !converged {
+            return None;
+        }
+        let grid = (coupling_g * plate - coupling_ieq + triode_plate_prev / r10) / grid_den;
+        let (triode_plate, triode_cathode) = self.solve_triode(grid);
+        Some((plate, screen, cathode, grid, triode_plate, triode_cathode))
     }
 
     /// Solve del pentodo con el capacitor de pantalla TPT y la corriente de
@@ -360,9 +581,8 @@ impl PhaseInverter7199 {
     /// Sistema acoplado **Newton 3D** (`x = [Vs, Vc, Ip]`, jacobiano
     /// **analítico** de las pendientes de `tube_models`, sin asignaciones) con
     /// **arranque cálido** del sample anterior. La placa es implícita en `Ip`
-    /// por la resistencia de placa y la carga de la rama de acoplo
-    /// (linealizada en el reposo): `Vp(Ip) = (B+/Rp + Gacoplo·Vp_op −
-    /// Ip)/(1/Rp + Gacoplo)`.
+    /// por la resistencia de placa y la carga del acoplo:
+    /// `Vp(Ip) = (B+/Rp + G·Vg + Ieq − Ip)/(1/Rp + G)`.
     ///
     /// Antes era una bisección anidada (~60 iteraciones de cátodo × [punto
     /// fijo de pantalla ~30 + bisección de placa 60] ≈ 5.500 evaluaciones
@@ -374,7 +594,14 @@ impl PhaseInverter7199 {
     /// último estado válido (política del motor, sin `NaN`).
     /// `i_fb = (feedback − Vc)/Rf` (realimentación negativa al cátodo,
     /// topología del AN-183 y del raster).
-    fn solve_pentode(&mut self, grid_v: f64, feedback_v: f64) -> (f64, f64, f64, bool) {
+    fn solve_pentode_load(
+        &mut self,
+        grid_v: f64,
+        feedback_v: f64,
+        plate_load_g: f64,
+        plate_load_ieq: f64,
+        plate_load_vg: f64,
+    ) -> (f64, f64, f64, bool) {
         let supply = self.config.preamp_supply_v;
         let feed = self.config.pentode_screen_feed_ohms;
         let cathode_resistor = self.config.pentode_cathode_ohms;
@@ -387,10 +614,9 @@ impl PhaseInverter7199 {
             .feedback_resistor_ohms
             .map(|ohms| 1.0 / ohms.max(1.0))
             .unwrap_or(0.0);
-        let plate_op = self.operating_point.pentode_plate_v;
-        let plate_series = 1.0 / plate_resistor + self.coupling_conductance;
+        let plate_series = 1.0 / plate_resistor + plate_load_g;
         let plate_for = |current: f64| {
-            (supply / plate_resistor + self.coupling_conductance * plate_op - current)
+            (supply / plate_resistor + plate_load_g * plate_load_vg + plate_load_ieq - current)
                 / plate_series
         };
 
@@ -456,7 +682,7 @@ impl PhaseInverter7199 {
             // estado tibio garantiza el cruce y el Newton de reinicio pule la
             // solución completa (pantalla/cátodo acoplados).
             let plate_current_max_a =
-                supply / plate_resistor + self.coupling_conductance * plate_op;
+                supply / plate_resistor + plate_load_g * plate_load_vg + plate_load_ieq;
             let mut probe_state = x;
             let plate_residual = |state: &[f64; 3]| -> f64 {
                 self.pentode.plate_current_cathode(
@@ -636,11 +862,13 @@ fn solve_operating_point(
     let cathode_load = config.triode_cathode_load_ohms;
     let ratio =
         config.grid_leak_ground_ohms / (config.grid_leak_plate_ohms + config.grid_leak_ground_ohms);
+    // La 10 MΩ carga la placa: `Vp = (Bt − Ra·I)/(1 + (Ra/R10)(1 − ratio))`.
+    let plate_divisor = 1.0 + plate_load * (1.0 - ratio) / config.grid_leak_plate_ohms.max(1.0);
     let mut low = 0.0;
     let mut high = triode_supply / (plate_load + cathode_load);
     for _ in 0..200 {
         let current = 0.5 * (low + high);
-        let plate_v = triode_supply - plate_load * current;
+        let plate_v = (triode_supply - plate_load * current) / plate_divisor;
         let cathode_v = cathode_load * current;
         let grid_v = plate_v * ratio;
         let model = triode.plate_current(plate_v - cathode_v, grid_v - cathode_v);
@@ -651,7 +879,7 @@ fn solve_operating_point(
         }
     }
     let current = 0.5 * (low + high);
-    let triode_plate_v = triode_supply - plate_load * current;
+    let triode_plate_v = (triode_supply - plate_load * current) / plate_divisor;
     let triode_cathode_v = cathode_load * current;
     let triode_grid_v = triode_plate_v * ratio;
 
@@ -728,6 +956,7 @@ fn implicit_plate_current(
 mod tests {
     use super::*;
     use crate::circuit::test_circuit;
+    use std::f64::consts::PI;
 
     fn inverter() -> PhaseInverter7199 {
         PhaseInverter7199::from_circuit(&test_circuit(), 48_000.0).expect("datos trazados")

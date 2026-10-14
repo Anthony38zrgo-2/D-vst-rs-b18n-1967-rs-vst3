@@ -108,26 +108,25 @@ hardware de 1967.
   `Vp+Vk=Vrail`). La lectura de 65 V en pin 9 es la lectura cargada por un
   medidor de 20 kΩ/V (rango 250 V) de un nodo de ~88 V con fuente ~2.5 MΩ.
   Golden: `assets/fixtures/reference/phase_7199/`.
-- **Inversor 7199 en el motor (P1.4, implementado y contrastado; solve en la
-  Ola 8):** el pentodo se resuelve por **Newton 3D acoplado**
-  (`x = [Vs, Vc, Ip]`, jacobiano analítico de las derivadas de
-  `tube_models`) con la placa implícita en `Ip` por la red de placa y la carga
-  de la rama de acoplo linealizada en el reposo; respaldo declarado de
-  bisección monótona sobre `Ip` en el bracket físico `[0, A]` cuando el paso
-  cruza la zona `Vp ≤ 0` del modelo, y Newton de reinicio para pulir pantalla/
-  cátodo acoplados. El triodo de carga dividida se resuelve por Newton 1D con
-  fallback de bisección. Los modelos reciben tensiones **referidas al cátodo**
-  (placa-cátodo y pantalla-cátodo). El acoplo pentodo→triodo en AC se modela
-  como **paso alto de un polo** con polo efectivo `1/3.3 M + (1+|α|)/10 M`
-  (≈3,9 Hz, α la ganancia de placa del split-load) y la carga real de esa rama
-  sobre la placa del pentodo (declarado); el reposo resuelve la malla completa
-  10 M/3.3 M. Las salidas 0.05 µF alimentan `process_grids`. Contraste SPICE:
-  `.op` del pentodo idéntico y triodo dentro del 0,3 %; `.ac` magnitud ≤1,5 %
-  desde 200 Hz y fase ≤6,5° desde 1 kHz (por debajo de 200 Hz la fase no se
-  valida: la red exacta llega con P1.6); `.tran` de extremos al 8 %.
-  Simplificación declarada (Ola 8): el solve del pentodo **no modela la
-  conducción de rejilla de la 7199** (la rejilla es fuente ideal para el
-  motor); solo importa a drive de entrada extremo y queda documentado.
+- **Inversor 7199 en el motor (P1.4; solve acoplado desde B18-008):** el
+  pentodo y la red de acoplo se resuelven **conjuntamente** por **Newton 6D**
+  (`x = [Vs, Vc, Ip, Vg, It, Vk]`, jacobiano analítico) por muestra: pantalla y
+  cátodo del pentodo con el capacitor TPT de 0.1 µF, placa del pentodo implícita
+  en `Ip` con su red real (270 kΩ + capacitor de acoplo de 0.02 µF), **rejilla
+  del triodo con la malla 10 MΩ/3.3 MΩ, la conducción de rejilla `Ig(Vgk)` y la
+  placa del triodo realimentando en la misma muestra** (placa y cátodo
+  split-load implícitos en `It`, con la corriente de la 10 MΩ cargando la
+  placa). Respaldo declarado si no converge: rejilla lineal + Newton 3D del
+  pentodo con la carga real + Newton 1D del triodo (la aproximación de un polo
+  de la Ola 8), conservando el último estado válido en el peor caso. Los
+  modelos reciben tensiones **referidas al cátodo**. Las salidas 0.05 µF
+  alimentan `process_grids`. Contraste SPICE del **circuito ampliado**
+  (`b18n_7199_ac_1967.cir` incluye 0.02 µF + 10 MΩ + 3.3 MΩ): `.op` del pentodo
+  idéntico y triodo dentro del 0,3 %; `.ac` magnitud ≤0,0002 % y fase ≤0,05° en
+  20 Hz–20 kHz (test exige 0,1 %/0,2°); `.tran` de extremos al 0,03 % (test
+  exige 0,5 %). Simplificación declarada: el solve **no modela la conducción de
+  rejilla del pentodo 7199** (la rejilla es fuente ideal para el motor); solo
+  importa a drive de entrada extremo y queda documentado.
 - **Alias con la cadena real:** el FIR de media banda se subió a **63 taps**
   (latencia **47 muestras** ≈1 ms; corregida en P1.7 con la respuesta al
   impulso, el cálculo anterior de 93 duplicaba el retardo por etapa) y su ruta identidad es limpia (espurios

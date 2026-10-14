@@ -75,16 +75,19 @@ Excitación AC unitaria en la rejilla del pentodo; salidas medidas en la placa
 | 1 kHz | 78.357 | +1.47° | 79.149 | −178.5° |
 | 20 kHz | 78.387 | +0.07° | 79.179 | −179.9° |
 
-**Contraste Rust–SPICE** (test `phase_inverter_ac.rs`): magnitud ≤1.5 % desde
-200 Hz (≤1 % medido) y fase ≤6.5° desde 1 kHz; por debajo de 200 Hz se exige
-magnitud ≤10 % y la fase no se valida (aproximación de un polo en el acoplo).
+**Contraste Rust–SPICE** (test `phase_inverter_ac.rs`, tras B18-008): magnitud
+**≤0,0002 %** y fase **≤0,05°** en 20 Hz–20 kHz (medido; el test exige 0,1 % y
+0,2°). El golden incluye el circuito ampliado completo (0.02 µF + 10 MΩ +
+3.3 MΩ) y el solve del motor resuelve esa misma red de forma acoplada con el
+pentodo por muestra.
 
 ## `b18n_7199_tran_1967.cir` — transitorio (1 kHz, 0.2 V, con NFB)
 
 Ventana estable 15–20 ms; golden `b18n_7199_tran_1967_golden.txt` (desviaciones
 respecto del reposo con NFB). Extremos SPICE: placa +15.04/−16.17 V, cátodo
 +16.34/−15.19 V (polaridades opuestas, asimetría de válvula). El test compara
-los cuatro extremos con un 8 % de margen (Rust–SPICE).
+los cuatro extremos con un 0,5 % de margen (Rust–SPICE; medido 0,03 % tras
+B18-008).
 
 ## Regenerar
 

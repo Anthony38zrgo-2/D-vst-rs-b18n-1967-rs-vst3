@@ -6,7 +6,7 @@
 //! no usa `unwrap`/`panic`.
 //!
 //! Versión de algoritmo audible: la misma que reporta `b18n-render`
-//! (`0.1.0-nonlinear-triodes-power-7199-inverter-nfb-25k-tpt-rate-2x-tone-mna-preamp-loading-speaker-v1`).
+//! (`0.1.0-nonlinear-triodes-power-7199-inverter-nfb-25k-tpt-rate-2x-tone-mna-preamp-loading-7199-coupled-speaker-v1`).
 //! Si cambia el DSP, subir ambas (regla 8 del handoff).
 
 #![deny(unsafe_op_in_unsafe_fn)]
@@ -28,7 +28,7 @@ const VST3_CLASS_ID: [u8; 16] = *b"B18N1967VST3DSP!";
 /// Versión de algoritmo (debe coincidir con `b18n-render`).
 pub const ALGORITHM_VERSION: &str = concat!(
     env!("CARGO_PKG_VERSION"),
-    "-nonlinear-triodes-power-7199-inverter-nfb-25k-tpt-rate-2x-tone-mna-preamp-loading-speaker-v1"
+    "-nonlinear-triodes-power-7199-inverter-nfb-25k-tpt-rate-2x-tone-mna-preamp-loading-7199-coupled-speaker-v1"
 );
 
 /// Error de inicialización del plugin (fuera del hilo de audio).

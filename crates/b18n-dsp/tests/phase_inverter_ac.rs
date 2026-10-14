@@ -16,13 +16,14 @@ const SAMPLE_RATE_HZ: f64 = 48_000.0;
 const AMPLITUDE: f64 = 0.005;
 
 /// Fasor de la componente en `frequency_hz` (ventana rectangular, periodos
-/// enteros: sin fuga espectral).
+/// enteros: sin fuga espectral). Convención `v(t) = Re{V·e^{jωt}}`, igual que
+/// `ph()` de ngspice: `im −= x·sin(ωn)`.
 fn phasor(samples: &[f64], frequency_hz: f64) -> (f64, f64) {
     let omega = 2.0 * std::f64::consts::PI * frequency_hz / SAMPLE_RATE_HZ;
     let (mut re, mut im) = (0.0, 0.0);
     for (index, sample) in samples.iter().enumerate() {
         re += sample * (omega * index as f64).cos();
-        im += sample * (omega * index as f64).sin();
+        im -= sample * (omega * index as f64).sin();
     }
     (re, im)
 }
@@ -49,8 +50,15 @@ fn ac_response_matches_spice() {
         let (golden_mag_up, golden_phase_up, golden_mag_down, golden_phase_down) =
             (fields[1], fields[2], fields[3], fields[4]);
 
-        let settle = (4.0 * SAMPLE_RATE_HZ / frequency).ceil() as usize;
-        let measure = (16.0 * SAMPLE_RATE_HZ / frequency).ceil() as usize;
+        // La red de acoplo tiene su polo en ~3 Hz (20 nF con 10M/3.3M): se
+        // asienta al menos 1 s y se mide al menos 0,5 s para no contaminar la
+        // respuesta en baja frecuencia.
+        let settle = (4.0 * SAMPLE_RATE_HZ / frequency)
+            .ceil()
+            .max(SAMPLE_RATE_HZ) as usize;
+        let measure = (16.0 * SAMPLE_RATE_HZ / frequency)
+            .ceil()
+            .max(SAMPLE_RATE_HZ / 2.0) as usize;
         let total = settle + measure;
 
         let mut input = Vec::with_capacity(measure);
@@ -85,33 +93,25 @@ fn ac_response_matches_spice() {
         let magnitude_error = mag_up_error.max(mag_dn_error);
         let phase_error = phase_up_error.max(phase_dn_error);
 
-        // Tolerancias documentadas (medidas 2026-10-09):
-        //  - magnitud: <=2 % desde 200 Hz (medido <=1.5 %); <=10 % por debajo
-        //    (el acoplo de un polo difiere de la red exacta en LF).
-        //  - fase: <=8° desde 1 kHz (medido <=6.5°); <=35° entre 200-500 Hz
-        //    (medido <=32°). Por debajo de 200 Hz la fase NO se valida: la
-        //    red exacta de acoplo llega con P1.6.
-        if frequency >= 1_000.0 {
-            assert!(
-                magnitude_error < 0.02 && phase_error < 8.0,
-                "f={frequency} Hz: magnitud {:.2}%, fase {:.2}°",
-                magnitude_error * 100.0,
-                phase_error
-            );
-        } else if frequency >= 200.0 {
-            assert!(
-                magnitude_error < 0.02 && phase_error < 35.0,
-                "f={frequency} Hz: magnitud {:.2}%, fase {:.2}°",
-                magnitude_error * 100.0,
-                phase_error
-            );
-        } else {
-            assert!(
-                magnitude_error < 0.10,
-                "f={frequency} Hz: magnitud {:.2}% (LF)",
-                magnitude_error * 100.0
+        if std::env::var_os("B18N_PHASE_REPORT").is_some() {
+            println!(
+                "f={frequency:>6.0} Hz: mag_up {:.4}% mag_dn {:.4}% fase_up {:.3}° fase_dn {:.3}°",
+                mag_up_error * 100.0,
+                mag_dn_error * 100.0,
+                phase_up_error,
+                phase_dn_error
             );
         }
+
+        // Tolerancias documentadas tras B18-008 (red de acoplo resuelta de
+        // forma acoplada con el pentodo): medido ≤0,0002 % y ≤0,05° en
+        // 20 Hz–20 kHz a 48 kHz; se exige 0,1 % y 0,2° con margen.
+        assert!(
+            magnitude_error < 0.001 && phase_error < 0.2,
+            "f={frequency} Hz: magnitud {:.4}%, fase {:.3}°",
+            magnitude_error * 100.0,
+            phase_error
+        );
         compared += 1;
     }
     assert_eq!(compared, 10, "golden AC incompleto");
@@ -153,8 +153,8 @@ fn transient_matches_spice() {
         }
     }
 
-    // La asimetría de la válvula hace que pico y valle difieran; se comparan
-    // los cuatro extremos con un 8 % de margen (aproximación de acoplo).
+    // La asimetría de la válvula hace que pico y valle difieran; tras B18-008
+    // (red de acoplo acoplada) medido ≤0,03 %; se compara con 0,5 % de margen.
     for (label, measured) in [
         ("peak_up_v", peak_up),
         ("min_up_v", min_up),
@@ -164,7 +164,7 @@ fn transient_matches_spice() {
         let golden = expected[label];
         let error = (measured - golden).abs() / golden.abs();
         assert!(
-            error < 0.08,
+            error < 0.005,
             "{label}: Rust {measured:.4} vs SPICE {golden:.4} ({:.2}%)",
             error * 100.0
         );

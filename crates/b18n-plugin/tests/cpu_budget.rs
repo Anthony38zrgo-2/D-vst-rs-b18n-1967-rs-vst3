@@ -65,7 +65,11 @@ fn bench_stereo(oversampling: u8) -> f64 {
 /// a 48 kHz — aprox. un núcleo de audio; el suelo de la arquitectura actual
 /// es el coste de las evaluaciones Koren por muestra (~4-5 en el inversor,
 /// ~2-3 en cada triodo, Newton 3D con jacobiano analítico). Con 1× el
-/// coste baja a ~1/4 (panel Advanced). La guardia se fija en 25 µs (≈1,2
+/// coste baja a ~1/4 (panel Advanced). **B18-008** sube el coste medido a
+/// ~25,2 µs/muestra (estéreo, 4×): el inversor 7199 pasó del Newton 3D del
+/// pentodo + Newton 1D del triodo al solve **acoplado 6D** (red de acoplo,
+/// conducción de rejilla y split-load en el mismo sistema, ~2,9 iteraciones
+/// medias con arranque cálido). La guardia se fija en **28 µs** (≈1,34
 /// núcleos) para detectar regresiones sin acoplar la CI al hardware. En
 /// debug no se mide (el coste del solver dominaría).
 #[test]
@@ -76,9 +80,9 @@ fn process_is_far_below_realtime_budget() {
     let per_sample_ns = bench_stereo(4);
     println!("CPU: {per_sample_ns:.0} ns/muestra (estéreo, 4×, 48 kHz)");
     assert!(
-        per_sample_ns < 25_000.0,
-        "regresión de CPU: {per_sample_ns:.0} ns/muestra (guardia declarada 25 µs, \
-         medido ~23 µs en Ola 8)"
+        per_sample_ns < 28_000.0,
+        "regresión de CPU: {per_sample_ns:.0} ns/muestra (guardia declarada 28 µs, \
+         medido ~25,2 µs tras B18-008 y ~23 µs en Ola 8)"
     );
 }
 

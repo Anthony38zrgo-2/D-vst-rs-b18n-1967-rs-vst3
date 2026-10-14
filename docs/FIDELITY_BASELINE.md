@@ -188,3 +188,9 @@ resolverse antes de comparar respuestas: indica cambio de modelo o de errata.
   `guitar` sin él, `instrument` directo). `ALGORITHM_VERSION` →
   `…-tone-mna-preamp-loading-speaker-v1`; render E2E nuevo: pico 4,8210, RMS 1,4451,
   offset +0,0028; instancia stock del plugin 0,771 (−2,3 dBFS). Detalle en `CHANGELOG.md`.
+- **B18-008 (2026-10-14, rama `feat/7199-dynamic`, cambio audible):** el acoplo
+  pentodo→triodo del 7199 (0.02 µF + 10 MΩ + 3.3 MΩ + conducción de rejilla) se
+  resuelve acoplado por muestra (Newton 6D); contraste SPICE del circuito ampliado a
+  ≤0,0002 % / ≤0,05° (20 Hz–20 kHz) y transitorio al 0,03 %. `ALGORITHM_VERSION` →
+  `…-preamp-loading-7199-coupled-speaker-v1`; render E2E nuevo: pico 4,8155, RMS 1,4433,
+  offset +0,0029. Detalle en `CHANGELOG.md`.

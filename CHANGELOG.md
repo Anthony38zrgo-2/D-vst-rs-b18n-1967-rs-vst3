@@ -5,6 +5,32 @@ El versionado sigue SemVer una vez exista el primer bundle distribuible.
 
 ## [Unreleased]
 
+### Corregido — B18-008 (acoplo dinámico del inversor 7199, cambio audible)
+
+- **El acoplo pentodo→triodo se resuelve acoplado por muestra** (Newton 6D,
+  `x = [Vs, Vc, Ip, Vg, It, Vk]` con jacobiano analítico): pantalla y cátodo del
+  pentodo con su capacitor TPT, placa del pentodo implícita con su red real
+  (270 kΩ + 0.02 µF), rejilla del triodo con la malla 10 MΩ/3.3 MΩ y la
+  conducción de rejilla `Ig(Vgk)`, y triodo split-load con placa/cátodo
+  implícitos en la corriente (la 10 MΩ carga la placa). La placa del triodo
+  realimenta su rejilla **en la misma muestra**. La aproximación anterior (paso
+  alto de un polo con `alpha` congelado y carga linealizada) queda solo como
+  respaldo declarado si el solve acoplado no converge.
+- **Contraste SPICE del circuito ampliado** (`b18n_7199_ac_1967.cir` ya incluía
+  0.02 µF + 10 MΩ + 3.3 MΩ): `.ac` en 20 Hz–20 kHz con **≤0,0002 %** de
+  magnitud y **≤0,05°** de fase (el test exige 0,1 % / 0,2°; antes 10 %/35° en
+  LF); `.tran` 1 kHz/0,2 V con extremos al **0,03 %** (exige 0,5 %; antes 8 %).
+  Se corrigió la convención del fasor del test (devolvía el conjugado, oculto
+  por las tolerancias antiguas) y el asentamiento en LF (polo de ~3 Hz).
+- Newton acoplado con residuo 1e-10 y paso 1e-8 (el capacitor de 0.02 µF
+  integra el error de la rejilla/placa muestra a muestra) y refinado de la
+  rejilla con la `Ig` convergida para eliminar la deriva de continua. El coste
+  medido pasa de ~23,6 a ~25,2 µs/muestra (estéreo 4×) y la guardia de
+  `cpu_budget` se actualiza a 28 µs con la justificación medida.
+- `ALGORITHM_VERSION` → `…-preamp-loading-7199-coupled-speaker-v1`; render E2E:
+  pico 4,8210 → 4,8155, RMS 1,4451 → 1,4433, offset +0,0028 → +0,0029,
+  latencia 47 (sin cambio).
+
 ### Corregido — B18-005/006/007 (carga del previo: volumen, mezcla y jacks, cambio audible)
 
 - **Red de volumen física (B18-005).** El motor aplicaba un paso alto externo, una

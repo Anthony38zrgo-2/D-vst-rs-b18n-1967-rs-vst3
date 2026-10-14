@@ -101,7 +101,8 @@ pentodo, pin 8 cátodo del triodo, pin 9 rejilla del triodo.
   c.c.w.** y **330 kΩ con Bass c.w.** —valores que salen de `(270 kΩ + Z_tono)/2` con las
   dos ramas en paralelo (test `mixer_node_resistance_matches_manual_reading`: 205 kΩ/302 kΩ
   dentro del ±10 %). La impedancia de salida de cada red de tono en serie con su 270 kΩ
-  queda pendiente del nodo acoplado del inversor (B18-008).
+  queda como limitación declarada (B18-008 resolvió el acoplo interno del 7199; la carga
+  de la red de tono sobre el mezclador sigue pendiente).
 - **Pentodo:** placa por **270 kΩ** (**pin 2**, 105 V) desde el carril de previo;
   pantalla por **470 kΩ** (**pin 3**, 60 V) desde el mismo carril, con **150 kΩ a masa**
   y **0.1 µF** al cátodo; cátodo por **1.5 kΩ** a masa (**pin 6**, 1.8 V).
@@ -123,6 +124,12 @@ pentodo, pin 8 cátodo del triodo, pin 9 rejilla del triodo.
 - **150 kΩ (resuelto):** es la resistencia de pantalla a masa del pentodo (pin 3), no un
   componente de la realimentación; coherente con la tabla `RESISTANCE READINGS` del manual
   (V3/pin 3 = 150 kΩ con el equipo apagado).
+  *Estado (B18-008):* la malla de acoplo **0.02 µF + 10 MΩ + 3.3 MΩ** y la conducción de
+  rejilla del triodo se resuelven **acopladas con el pentodo en la misma muestra** (Newton
+  6D, `crates/b18n-dsp/src/stages/phase_splitter.rs`); la placa del triodo realimenta su
+  rejilla de forma dinámica (la aproximación de un polo queda solo como respaldo). El
+  contraste contra el golden AC del circuito ampliado queda en ≤0,0002 % de magnitud y
+  ≤0,05° de fase en 20 Hz–20 kHz.
 
 ### Realimentación negativa (NFB)
 
