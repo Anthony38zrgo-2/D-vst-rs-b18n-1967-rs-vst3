@@ -22,7 +22,15 @@ Los PDF se conservan localmente y **no se redistribuyen** (excluidos de git).
 - **Entradas:** dos jacks por canal (CH1: `bass`, `guitar`; CH2: `instrument`), cada uno con
   resistencia serie de **120 kΩ**; resistencia de fuga de rejilla de **5.6 MΩ** en CH1 y
   **2.2 MΩ** en CH2; **100 kΩ** de referencia a masa en la zona de jacks.
-  *Pendiente:* asignación exacta jack↔R (Hito B).
+  *Estado (B18-007): trazado con recortes del raster.* El jack `guitar` (inferior) es
+  **conmutado**: su llave, cerrada sin plug, corta su punta a masa a través de la **100 kΩ**
+  (por eso V1/pin 4 mide **220 kΩ** = 5.6 M ∥ (120 k + 100 k), coherente con la tabla del
+  manual ±10 %); al insertar el plug la llave abre. El jack `bass` (superior) es simple
+  (manguito a masa). CH2 (`instrument`) no tiene serie: la punta va directa a la rejilla de
+  V2/pin 4, con la llave a masa sin plug. El manual lista 220 kΩ en V2/pin 4 igual que en
+  V1/pin 4, valor que el raster no respalda (se registra la discrepancia). Implementado en
+  `InputJackNetwork` (`crates/b18n-dsp/src/stages/input.rs`) con golden SPICE
+  `assets/fixtures/reference/input_jacks/`.
 - **V1/V2 (6SL7GT), por canal:**
   > **Modelo de válvula:** el JSON no incluye curvas (`tube_6sl7gt_characteristic_curves: null`).
   > El motor usa un modelo Koren con parámetros **estimados** (calibración, método en
@@ -30,6 +38,11 @@ Los PDF se conservan localmente y **no se redistribuyen** (excluidos de git).
   > limitaciones en `docs/MODEL_ASSUMPTIONS.md`.
   - Triodo 1: placa **470 kΩ**, cátodo **5.6 kΩ** sin bypass, DC de placa **175 V**, cátodo **2.4 V**.
   - Acoplo **0.022 µF** → potenciómetro **VOL 1 M** (el cursor alimenta la rejilla del triodo 2).
+    *Estado (B18-005): trazado.* El potenciómetro va **a masa** por su extremo inferior; no
+    hay fuga de rejilla separada: la propia sección inferior del pot es la carga DC (la tabla
+    del manual mide V1/pin 1 = **0 Ω a 1 MΩ** según la posición). La red completa
+    (placa → `Ro` → 0.022 µF → Rtop–cursor–Rbottom) se resuelve en el Newton del 6SL7#2
+    (`VolumeNetworkState`) con golden SPICE `assets/fixtures/reference/volume_network/`.
   - Triodo 2: placa **220 kΩ**, cátodo **2.2 kΩ** sin bypass, DC de placa **185 V**, cátodo **2.0 V**.
   - Acoplo **0.022 µF** → red de tono.
 - **Tono (recuadro `Printed CKT`, CH1 y CH2 idénticos):** red pasiva acoplada de tipo
@@ -81,7 +94,14 @@ del pentodo, pin 3 pantalla G2, pin 6 cátodo del pentodo, pin 7 rejilla de cont
 pentodo, pin 8 cátodo del triodo, pin 9 rejilla del triodo.
 
 - Salidas de ambos tonos se suman a través de **270 kΩ** por canal (resistor de mezcla
-  `channel_mixer_resistor_ohms`) → **0.05 µF** → rejilla del pentodo (**pin 7**, 0 V).
+  `channel_mixer_resistor_ohms`) en un nodo compartido que va **directo** a la rejilla del
+  pentodo (**pin 7**, 0 V). *Corregido en B18-006:* **no** hay capacitor de 0.05 µF ni fuga
+  de 1 MΩ en ese nodo (los 0.05 µF del esquema son los acoplos del inversor a las 7027A).
+  Evidencia: la tabla `RESISTANCE READINGS` del manual mide V3/pin 7 = **220 kΩ con Bass
+  c.c.w.** y **330 kΩ con Bass c.w.** —valores que salen de `(270 kΩ + Z_tono)/2` con las
+  dos ramas en paralelo (test `mixer_node_resistance_matches_manual_reading`: 205 kΩ/302 kΩ
+  dentro del ±10 %). La impedancia de salida de cada red de tono en serie con su 270 kΩ
+  queda pendiente del nodo acoplado del inversor (B18-008).
 - **Pentodo:** placa por **270 kΩ** (**pin 2**, 105 V) desde el carril de previo;
   pantalla por **470 kΩ** (**pin 3**, 60 V) desde el mismo carril, con **150 kΩ a masa**
   y **0.1 µF** al cátodo; cátodo por **1.5 kΩ** a masa (**pin 6**, 1.8 V).

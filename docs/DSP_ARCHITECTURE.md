@@ -29,7 +29,8 @@ en cascada sin resolver la realimentación.
 
 1. **Lineal (Hito B, implementado):** entrada, 6SL7 de pequeña señal con acoplos RC,
    volumen con taper asumido, red de tono resuelta con MNA (frecuencial y TPT temporal),
-   mezcla 270 kΩ + 0.05 µF, OT-471 ideal con DCR y carga de 8 Ω.
+   mezcla de 270 kΩ al nodo de rejilla del inversor (B18-006: sin acoplo en ese nodo),
+   OT-471 ideal con DCR y carga de 8 Ω.
 2. **Triodos no lineales (Hito C parte 1, implementado):** modelo Koren del
    6SL7 con parámetros de calibración, Newton amortiguado con jacobiano
    analítico, cota de paso y retroceso de línea; conducción de rejilla

@@ -164,6 +164,50 @@ pub struct TriodeStageConfig {
     pub sample_rate_hz: f64,
 }
 
+/// Red de volumen física en la rejilla del segundo 6SL7 (B18-005):
+/// placa del primer triodo (`Vsrc` detrás de `Ro`) → capacitor de acoplo →
+/// potenciómetro (Rtop–cursor–Rbottom a masa) → rejilla.
+///
+/// El solve de Newton ve la red como su Thevenin en la rejilla `(Vth, Rth)`
+/// y la corriente de rejilla `Ig(Vgk)` cierra la malla; el capacitor TPT
+/// conserva su estado entre muestras.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct VolumeNetworkState {
+    source_resistance_ohms: f64,
+    coupling: TptCapacitor,
+    pot_ohms: f64,
+    top_ohms: f64,
+    bottom_ohms: f64,
+}
+
+impl VolumeNetworkState {
+    /// Thevenin en el cursor (rejilla) para la fuente `v_src` de esta muestra.
+    /// Con el capacitor abierto (`active == false`, reposo DC) la rejilla queda
+    /// con la carga del potenciómetro sola.
+    fn thevenin(&self, v_src: f64, active: bool) -> (f64, f64) {
+        let bottom = self.bottom_ohms.max(1.0);
+        let source = self.source_resistance_ohms.max(1.0);
+        let cap_resistance = if active {
+            1.0 / self.coupling.conductance().max(1e-30)
+        } else {
+            f64::INFINITY
+        };
+        let companion = if active {
+            self.coupling.companion_current()
+        } else {
+            0.0
+        };
+        let denominator = bottom + self.top_ohms + source + cap_resistance;
+        let vth = if denominator.is_finite() {
+            (v_src * bottom - companion * bottom / self.coupling.conductance()) / denominator
+        } else {
+            0.0
+        };
+        let rth = 1.0 / (1.0 / bottom + 1.0 / (self.top_ohms + source + cap_resistance));
+        (vth, rth)
+    }
+}
+
 /// Etapa de triodo resuelta por Newton por muestra (Hito C, parte 1).
 ///
 /// Incógnitas: `[Vg, Vk, Vp]`. La corriente de rejilla no se modela todavía;
@@ -174,6 +218,7 @@ pub struct NonlinearTriodeStage {
     model: KorenTriodeModel,
     config: TriodeStageConfig,
     coupling: Option<TptCapacitor>,
+    volume_network: Option<VolumeNetworkState>,
     newton: NewtonConfig,
     nodes: [f64; 3],
     iterations_last: usize,
@@ -193,6 +238,7 @@ impl NonlinearTriodeStage {
             coupling: config
                 .coupling_farads
                 .map(|farads| TptCapacitor::new(farads, dt)),
+            volume_network: None,
             newton: TRIODE_NEWTON,
             nodes: [0.0, 0.0, config.supply_v * 0.5],
             iterations_last: 0,
@@ -249,8 +295,47 @@ impl NonlinearTriodeStage {
         if let Some(coupling) = &mut self.coupling {
             coupling.reset();
         }
+        if let Some(network) = self.volume_network.as_mut() {
+            network.coupling.reset();
+        }
         self.nodes = [0.0, 0.0, self.config.supply_v * 0.5];
         self.iterations_last = 0;
+    }
+
+    /// Actualiza la red de entrada (B18-007): resistencia serie del jack y
+    /// carga efectiva de rejilla. La serie `0` (jack directo, `instrument`)
+    /// usa un piso numérico de 1 Ω para no singularizar la malla.
+    pub fn set_input_network(&mut self, series_ohms: f64, grid_leak_ohms: f64) {
+        self.config.series_resistance_ohms = series_ohms.max(1.0);
+        self.config.grid_leak_ohms = grid_leak_ohms.max(1.0);
+    }
+
+    /// Habilita la red de volumen física (B18-005) en la rejilla: fuente
+    /// `Ro` → capacitor de acoplo → potenciómetro `pot_ohms` a masa.
+    pub fn enable_volume_network(
+        &mut self,
+        source_resistance_ohms: f64,
+        coupling_farads: f64,
+        pot_ohms: f64,
+    ) {
+        let dt = 1.0 / self.config.sample_rate_hz;
+        self.volume_network = Some(VolumeNetworkState {
+            source_resistance_ohms: source_resistance_ohms.max(1.0),
+            coupling: TptCapacitor::new(coupling_farads, dt),
+            pot_ohms,
+            top_ohms: 0.5 * pot_ohms,
+            bottom_ohms: 0.5 * pot_ohms,
+        });
+    }
+
+    /// Posición del potenciómetro de volumen como **fracción de resistencia**
+    /// del cursor (`volume_fraction`): `0` = cursor a masa, `1` = cursor arriba.
+    pub fn set_volume_fraction(&mut self, fraction: f64) {
+        if let Some(network) = self.volume_network.as_mut() {
+            let fraction = fraction.clamp(0.0, 1.0);
+            network.bottom_ohms = fraction * network.pot_ohms;
+            network.top_ohms = (1.0 - fraction) * network.pot_ohms;
+        }
     }
 
     /// Resuelve el punto de reposo (entrada nula, capacitores abiertos) y lo
@@ -269,6 +354,9 @@ impl NonlinearTriodeStage {
             if let Some(coupling) = &mut self.coupling {
                 coupling.reset();
             }
+            if let Some(network) = self.volume_network.as_mut() {
+                network.coupling.reset();
+            }
         } else {
             self.convergence_failures += 1;
         }
@@ -279,6 +367,14 @@ impl NonlinearTriodeStage {
     pub fn process(&mut self, input_v: f64) -> f64 {
         let config = self.newton;
         let mut x = self.nodes;
+        if let Some(network) = &self.volume_network {
+            // Arranque en la solución lineal de la red (sin conducción de
+            // rejilla). La tolerancia de residuo del Newton está en amperios y
+            // la red de volumen tiene corrientes de señal muy pequeñas; sin
+            // este arranque, el criterio de convergencia congela la rejilla en
+            // pequeña señal (el resto del sistema ya está resuelto).
+            x[0] = network.thevenin(input_v, true).0;
+        }
         let report = {
             let evaluate = |state: &[f64], out: &mut [f64], jacobian: &mut [[f64; 3]; 3]| {
                 self.residual_and_jacobian(input_v, true, state, out, jacobian);
@@ -292,7 +388,30 @@ impl NonlinearTriodeStage {
         self.last_failure = report.failure;
         if report.converged && x.iter().all(|value| value.is_finite()) {
             self.nodes = x;
-            if let Some(coupling) = &mut self.coupling {
+            if let Some(network) = self.volume_network.as_ref() {
+                // Refina la rejilla con la Ig ya convergida: el criterio de
+                // parada del Newton (1e-9 A) deja un error de hasta `1e-9·Rth`
+                // (~0,1 mV) que, con el capacitor en serie, se integraría en su
+                // estado y aparecería como deriva de continua.
+                let (vth, rth) = network.thevenin(input_v, true);
+                let grid_current = self
+                    .model
+                    .grid_current_with_slope(self.nodes[0] - self.nodes[1])
+                    .0;
+                self.nodes[0] = vth - rth * grid_current;
+            }
+            if let Some(network) = self.volume_network.as_mut() {
+                // Estado del capacitor de acoplo a partir de las tensiones de
+                // los nodos internos de la red (S: placa tras `Ro`; T: punta
+                // del potenciómetro), con la corriente de rejilla resuelta.
+                let grid_v = self.nodes[0];
+                let grid_current = self.model.grid_current_with_slope(grid_v - self.nodes[1]).0;
+                let bottom = network.bottom_ohms.max(1.0);
+                let common = grid_current + grid_v / bottom;
+                let source_node = input_v - network.source_resistance_ohms.max(1.0) * common;
+                let top_node = grid_v + network.top_ohms * common;
+                network.coupling.update(source_node - top_node);
+            } else if let Some(coupling) = &mut self.coupling {
                 coupling.update(input_v - self.nodes[0]);
             }
             self.nodes[2]
@@ -316,7 +435,10 @@ impl NonlinearTriodeStage {
             .plate_current_with_slopes(plate_v, grid_v - cathode_v);
         let (grid_current, d_ig_dvgk) = self.model.grid_current_with_slope(grid_v - cathode_v);
 
-        let (grid_balance, d_grid_balance_dvg) = if coupling_active {
+        let (grid_balance, d_grid_balance_dvg) = if let Some(network) = &self.volume_network {
+            let (vth, rth) = network.thevenin(input_v, coupling_active);
+            ((vth - grid_v) / rth, -1.0 / rth)
+        } else if coupling_active {
             match &self.coupling {
                 Some(coupling) => {
                     let capacitor_current =
@@ -326,16 +448,20 @@ impl NonlinearTriodeStage {
                         -(coupling.conductance() + 1.0 / self.config.grid_leak_ohms),
                     )
                 }
-                None => (
-                    (input_v - grid_v) / self.config.series_resistance_ohms
-                        - grid_v / self.config.grid_leak_ohms,
-                    -(1.0 / self.config.series_resistance_ohms + 1.0 / self.config.grid_leak_ohms),
-                ),
+                None => {
+                    // Piso numérico para el jack directo (serie 0 Ω).
+                    let series = self.config.series_resistance_ohms.max(1.0);
+                    let leak = self.config.grid_leak_ohms.max(1.0);
+                    (
+                        (input_v - grid_v) / series - grid_v / leak,
+                        -(1.0 / series + 1.0 / leak),
+                    )
+                }
             }
         } else {
             (
-                -grid_v / self.config.grid_leak_ohms,
-                -1.0 / self.config.grid_leak_ohms,
+                -grid_v / self.config.grid_leak_ohms.max(1.0),
+                -1.0 / self.config.grid_leak_ohms.max(1.0),
             )
         };
 

@@ -245,6 +245,45 @@ impl ToneStackDesign {
         let solution = mna.solve()?;
         Some(solution[NODE_OUT])
     }
+
+    /// Resistencia de salida en **continua** de la red (capacitores abiertos),
+    /// vista desde `OUT` con las fuentes internas anuladas.
+    ///
+    /// Contraste de la tabla de resistencias del manual en el nodo de mezcla
+    /// (B18-006): desde V3/pin 7 se mide `(270 kΩ + Z_out) / 2`.
+    #[must_use]
+    pub fn dc_output_resistance(&self, controls: ToneStackControls) -> f64 {
+        // Mapa local del tono aislado (sin `SOURCE`).
+        const IN: usize = 1;
+        const B: usize = 2;
+        const W: usize = 3;
+        const C: usize = 4;
+        const T1: usize = 5;
+        const T2: usize = 6;
+        const OUT: usize = 7;
+        const TONE_ONLY_NODES: usize = 7;
+
+        let (r_bw, r_wc) = bass_pot_split(self.bass_pot_ohms, controls.bass);
+        let (r_t_out, r_out_t2) = treble_pot_split(self.treble_pot_ohms, controls.treble);
+
+        let mut mna = RealMna::new(TONE_ONLY_NODES);
+        mna.add_conductance(IN, B, 1.0 / self.series_resistor_ohms);
+        mna.add_conductance(B, W, 1.0 / r_bw);
+        mna.add_conductance(W, C, 1.0 / r_wc);
+        mna.add_conductance(C, GND, 1.0 / self.bass_stop_resistor_ohms);
+        mna.add_conductance(W, GND, 1.0 / self.bass_cut_resistor_ohms);
+        mna.add_conductance(W, T1, 1.0 / self.mid_resistor_ohms);
+        mna.add_conductance(T1, OUT, 1.0 / r_t_out);
+        mna.add_conductance(OUT, T2, 1.0 / r_out_t2);
+        mna.add_current_injection(OUT, 1.0);
+
+        let mut solution = [0.0; TONE_ONLY_NODES + 1];
+        if mna.solve_into(&mut solution) {
+            solution[OUT]
+        } else {
+            f64::INFINITY
+        }
+    }
 }
 
 /// Procesador en tiempo real de la red de tono (MNA + capacitores TPT).

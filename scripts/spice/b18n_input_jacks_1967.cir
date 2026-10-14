@@ -1,0 +1,24 @@
+* B-18N/B-15ND 1967 - redes de jack de entrada (B18-007)
+* Trazado del raster SCH-567:
+*   CH1 (bass/guitar): 120 kOhm serie por jack; fuga de rejilla 5.6 MOhm.
+*     El jack guitar es conmutado: su llave, cerrada sin plug, corta la punta
+*     a masa por 100 kOhm (120k+100k = 220 kOhm de carga adicional).
+*   CH2 (instrument): punta directa a la rejilla; fuga 2.2 MOhm; llave a masa.
+*
+* Este netlist de referencia modela la carga efectiva con el jack en uso:
+*   bass:       Rsrc -> tip -> 120k -> grid, grid-0 = 5.6M || 220k
+*   guitar:     Rsrc -> tip -> 120k -> grid, grid-0 = 5.6M
+*   instrument: Rsrc -> tip -> 1m -> grid, grid-0 = 2.2M
+* H = v(grid)/v(src) (divisor resistivo; plano en frecuencia).
+* El barrido completo lo genera input_jacks_sweep.py.
+
+vin src 0 ac 1
+rsrc src tip 0
+rbass tip grid 120k
+rleak grid 0 211.764705882k
+.control
+ac lin 1 1k 1k
+let h = v(grid)/v(src)
+print mag(h) ph(h)
+.endc
+.end

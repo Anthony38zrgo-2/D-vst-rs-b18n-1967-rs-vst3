@@ -5,6 +5,37 @@ El versionado sigue SemVer una vez exista el primer bundle distribuible.
 
 ## [Unreleased]
 
+### Corregido — B18-005/006/007 (carga del previo: volumen, mezcla y jacks, cambio audible)
+
+- **Red de volumen física (B18-005).** El motor aplicaba un paso alto externo, una
+  ganancia de volumen y una serie fija de `1 MΩ × 0.25` al 6SL7#2. Ahora la rejilla
+  del segundo triodo resuelve la red trazada: placa del 6SL7#1 detrás de su `Ro` →
+  acoplo de 0.022 µF → potenciómetro 1 MΩ log **a masa** (Rtop–cursor–Rbottom) →
+  rejilla, con la conducción de rejilla dentro del Newton. La carga DC es la sección
+  inferior del pot (manual V1/pin 1: 0 Ω–1 MΩ). Golden ngspice en
+  `assets/fixtures/reference/volume_network/` (0,02 dB / 0,2° a 100 Hz–10 kHz); el
+  arranque del Newton en la solución lineal evita congelar la rejilla en pequeña señal
+  y el refinado con la `Ig` convergida elimina la deriva del capacitor (residuo de
+  silencio ~2e-14).
+- **Mezclador físico sin fuga asumida (B18-006).** Trazado del raster + tabla del
+  manual (V3/pin 7 = 220/330 kΩ según Bass): los dos 270 kΩ van **directos** al nodo
+  de rejilla, sin 0.05 µF ni 1 MΩ (los 0.05 µF del esquema son los acoplos del
+  inversor a las 7027A). El canal inactivo carga con su 270 kΩ (`(v1+v2)/2` con
+  fuentes idealizadas; test `mixer_node_resistance_matches_manual_reading`:
+  205 kΩ/302 kΩ dentro del ±10 %). La impedancia de salida del tono en serie con su
+  270 kΩ queda para el nodo acoplado del inversor (B18-008).
+- **Jacks de entrada diferenciados (B18-007).** CH1: 120 kΩ por jack y 5.6 MΩ de
+  fuga; el jack `guitar` (conmutado) corta su punta a masa por 100 kΩ cuando está
+  libre (`bass` = 211.8 kΩ, V1/pin 4 = 220 kΩ en el manual ±10 %); `guitar` sin
+  shunt al insertar. CH2 (`instrument`): punta directa a la rejilla y 2.2 MΩ de fuga.
+  `InputJackNetwork` por canal, conmutado en `set_controls`; golden ngspice en
+  `assets/fixtures/reference/input_jacks/`. Discrepancia del manual en V2/pin 4
+  registrada (fila duplicada de V1).
+- `ALGORITHM_VERSION` →
+  `…-tone-mna-preamp-loading-speaker-v1`; render E2E: pico 5,1420 → 4,8210,
+  RMS 1,5610 → 1,4451, offset +0,0030 → +0,0028, latencia 47 (sin cambio).
+  La instancia stock del plugin queda en 0,771 (−2,3 dBFS) con el trim −20,0 dB.
+
 ### Corregido — B18-003 (acoplo 0,022 µF integrado en el MNA del tono, cambio audible)
 
 - **Doble atenuación del camino de tono eliminada.** El motor aplicaba un paso

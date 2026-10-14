@@ -1,0 +1,22 @@
+* B-18N/B-15ND 1967 - red de volumen del canal (B18-005)
+* Trazado del raster SCH-567 + tabla de resistencias del manual (V1/pin 1:
+* 0 ohm a 1 MOhm segun la posicion del volumen):
+*   placa del 6SL7#1 (Vsrc) -> Ro -> 0.022 uF -> pot 1 M (Rtop-cursor-Rbottom
+*   a masa) -> rejilla del 6SL7#2. Sin fuga de rejilla separada: el propio
+*   potenciometro es la carga (Rbottom a masa).
+*
+* H = v(cursor)/v(src) con la rejilla en circuito abierto (la corriente de
+* rejilla es despreciable en pequena senal). El barrido completo lo genera
+* volume_network_sweep.py.
+
+vin src 0 ac 1
+ro src s 227.7k
+cc s t 0.022u
+rtop t w 909.091k
+rbot w 0 90.909k
+.control
+ac lin 1 1k 1k
+let h = v(w)/v(src)
+print mag(h) ph(h)
+.endc
+.end

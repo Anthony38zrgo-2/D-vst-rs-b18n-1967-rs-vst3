@@ -28,13 +28,24 @@ hardware de 1967.
 
 ## Cadena lineal (Hito B)
 
-- **Taper del volumen:** aproximación asumida `f(p) = (10^(2p) − 1)/99` (10 % a mitad de
-  recorrido). Sustituible por una curva medida sin cambiar la API.
-- **Fuga de rejilla de la 7199 (mezcla):** 1 MΩ asumidos hasta digitalizar la red de
-  entrada de la válvula; solo fija el polo del acoplo de 0.05 µF (~2.8 Hz).
-- **Mezcla de canales:** resistores de 270 kΩ idénticos; el nodo vale
-  `g·(v1+v2)`, `g = (1/Rm)/(2/Rm + 1/Rg)`. No se modela la impedancia de salida del canal
-  inactivo (Hito D la desarrollará).
+- **Entrada y jacks (B18-007):** cada canal lleva su red trazada del raster: CH1 con
+  **120 kΩ** serie por jack y **5.6 MΩ** de fuga; el jack `guitar` (conmutado) corta su
+  punta a masa por **100 kΩ** cuando está libre (V1/pin 4 = 220 kΩ en el manual ±10 %).
+  CH2 (`instrument`) va directa a la rejilla con **2.2 MΩ** de fuga. No hay ecualización
+  por nombre de jack. Contraste ngspice en
+  `assets/fixtures/reference/input_jacks/`.
+- **Red de volumen (B18-005):** placa del 6SL7#1 detrás de su `Ro` → acoplo de
+  **0.022 µF** → potenciómetro **1 MΩ log a masa** (Rtop–cursor–Rbottom) → rejilla del
+  6SL7#2. La carga DC de la rejilla es la sección inferior del pot (manual V1/pin 1:
+  0 Ω–1 MΩ con el mando), sin fuga separada. El Newton del 6SL7#2 resuelve la malla con
+  la conducción de rejilla; ley del mando `f(p) = (10^(2p) − 1)/99` (estimada, sustituible
+  por una curva medida). Contraste ngspice en
+  `assets/fixtures/reference/volume_network/`. La impedancia de salida de la red de tono
+  en serie con su 270 kΩ queda pendiente del nodo acoplado del inversor (B18-008).
+- **Mezcla de canales (B18-006):** dos resistores de **270 kΩ** a un nodo compartido que
+  va directo a la rejilla del pentodo 7199 (sin 0.05 µF ni fuga de 1 MΩ; la evidencia es
+  la tabla de resistencias del manual, V3/pin 7 = 220–330 kΩ según Bass). Con fuentes
+  idealizadas el nodo vale `(v1+v2)/2` y el canal inactivo carga con su 270 kΩ.
 - **Carga de la red de tono:** 270 kΩ (resistor de mezcla) para las curvas estándar.
 - **Acoplo del tono (B18-003):** el capacitor de **0.022 µF** de la placa del 6SL7#2
   está integrado en el MNA del tono junto con la resistencia de fuente `Ro` (una sola

@@ -9,7 +9,6 @@
 //! sin insertar tensiones nominales a mano. Si Newton falla durante el audio
 //! se conserva el último estado válido y se incrementa un contador de fallos.
 
-use std::f64::consts::PI;
 use std::fmt;
 
 use crate::audio_context::ProcessSpec;
@@ -17,7 +16,7 @@ use crate::circuit::CircuitDefinition;
 use crate::controls::{volume_fraction, InputChannel, RuntimeControls};
 use crate::numerics::oversampling::Oversampler;
 use crate::stages::channel_mixer::ChannelMixer;
-use crate::stages::input::InputStage;
+use crate::stages::input::{InputJackNetwork, InputStage};
 use crate::stages::phase_splitter::{PhaseInverter7199, PhaseInverterOperatingPoint};
 use crate::stages::power_7027a::{PowerStageConfig, PushPullStage};
 use crate::stages::speaker::SpeakerCabinet;
@@ -30,7 +29,7 @@ use crate::stages::triode_6sl7::{
 use crate::stages::tube_models::{KorenPentodeModel, KorenTriodeModel};
 use crate::state::{EngineState, OperatingPoint, StageOperatingPoint};
 use crate::utilities::db::db_to_gain;
-use crate::utilities::filters::{OnePoleHighPass, OnePoleLowPass};
+use crate::utilities::filters::OnePoleLowPass;
 use crate::utilities::smoothing::SmoothedValue;
 
 /// Compensación del lazo de NFB (aproximación declarada): el modelo no
@@ -63,9 +62,6 @@ const FEEDBACK_COMPENSATION_CUTOFF_HZ: f64 = 2_500.0;
 /// los suavizados avanzan una vez por muestra de la tasa de proceso, por lo que
 /// no se multiplica por el factor de sobremuestreo (B18-004).
 const CONTROL_SMOOTHING_MS: f32 = 15.0;
-
-/// Serie de la red de entrada documentada (120 kΩ por jack).
-const INPUT_SERIES_OHMS: f64 = 120_000.0;
 
 /// Error de configuración del motor.
 #[derive(Debug, Clone, PartialEq)]
@@ -343,15 +339,22 @@ impl LinearChain {
         let processing_rate = spec.sample_rate_hz * f64::from(spec.oversampling);
         let tone_design = ToneStackDesign::from_circuit(circuit)?;
 
-        // Fugas de rejilla documentadas: CH1 = 5.6 MΩ, CH2 = 2.2 MΩ.
-        let channel_1 = ChannelChain::new(circuit, &tone_design, processing_rate, 5_600_000.0)?;
-        let channel_2 = ChannelChain::new(circuit, &tone_design, processing_rate, 2_200_000.0)?;
-
-        let mixer = ChannelMixer::new(
-            circuit.channel.channel_mixer_resistor_ohms,
-            circuit.power_stage.inverter_to_grid_coupling_farads_each,
+        // Redes de jack trazadas (B18-007): CH1 distingue `bass` (con el shunt
+        // de 100 kΩ del jack `guitar` libre) de `guitar`; CH2 es `instrument`.
+        let channel_1 = ChannelChain::new(
+            circuit,
+            &tone_design,
             processing_rate,
-        );
+            InputJackNetwork::for_channel(InputChannel::Bass),
+        )?;
+        let channel_2 = ChannelChain::new(
+            circuit,
+            &tone_design,
+            processing_rate,
+            InputJackNetwork::for_channel(InputChannel::Instrument),
+        )?;
+
+        let mixer = ChannelMixer::new(circuit.channel.channel_mixer_resistor_ohms);
 
         let inverter = PhaseInverter7199::from_circuit(circuit, processing_rate)
             .ok_or(EngineError::MissingInverterData)?;
@@ -451,7 +454,17 @@ impl LinearChain {
         self.output_trim_db.set_target(controls.output_trim_db);
         self.channel_1.set_targets(controls, true);
         self.channel_2.set_targets(controls, false);
-        self.channel = controls.channel;
+        if self.channel != controls.channel {
+            // Conmutación de jack (B18-007): `bass` y `guitar` comparten el
+            // canal 1 pero cargan la rejilla distinto (shunt del jack libre).
+            let network = InputJackNetwork::for_channel(controls.channel);
+            let stage = match controls.channel {
+                InputChannel::Bass | InputChannel::Guitar => &mut self.channel_1.triode_1,
+                InputChannel::Instrument => &mut self.channel_2.triode_1,
+            };
+            stage.set_input_network(network.series_ohms, network.grid_load_ohms);
+            self.channel = controls.channel;
+        }
     }
 
     /// Restaura el estado desde la cadena de reposo **sin asignar memoria**
@@ -460,7 +473,7 @@ impl LinearChain {
         self.input = other.input;
         self.channel_1.restore_from(&other.channel_1);
         self.channel_2.restore_from(&other.channel_2);
-        self.mixer = other.mixer.clone();
+        self.mixer = other.mixer;
         self.inverter = other.inverter.clone();
         self.power = other.power.clone();
         self.input_trim_db = other.input_trim_db;
@@ -512,13 +525,14 @@ impl LinearChain {
     }
 }
 
-/// Cadena de un canal: 6SL7#1, acoplo, volumen, 6SL7#2, acoplo integrado en
-/// el MNA del tono (B18-003).
+/// Cadena de un canal: 6SL7#1, red de volumen física (B18-005), 6SL7#2 y
+/// acoplo integrado en el MNA del tono (B18-003).
 #[derive(Clone)]
 struct ChannelChain {
     triode_1: NonlinearTriodeStage,
-    coupling_1: OnePoleHighPass,
-    coupling_1_gain: f64,
+    /// Tensión de placa del 6SL7#1 en reposo: la red de volumen recibe la
+    /// desviación AC (el capacitor de acoplo del Newton la deriva respecto).
+    plate_1_dc: f64,
     triode_2: NonlinearTriodeStage,
     /// Tensión de placa del 6SL7#2 en reposo: el tono recibe la desviación AC
     /// (el acoplo de 0.022 µF del MNA la deriva respecto de ella).
@@ -527,7 +541,6 @@ struct ChannelChain {
     volume: SmoothedValue,
     bass: SmoothedValue,
     treble: SmoothedValue,
-    volume_gain: MappedControl,
 }
 
 impl ChannelChain {
@@ -535,7 +548,7 @@ impl ChannelChain {
         circuit: &CircuitDefinition,
         tone_design: &ToneStackDesign,
         processing_rate_hz: f64,
-        grid_leak_ohms: f64,
+        input_network: InputJackNetwork,
     ) -> Result<Self, EngineError> {
         let params = circuit
             .tube_models
@@ -548,14 +561,14 @@ impl ChannelChain {
         let model = KorenTriodeModel::new(params);
         let volume_pot_ohms = circuit.channel.volume_pot.max_ohms;
 
-        // --- Triodo 1 (conexión directa desde la red de entrada) ---
+        // --- Triodo 1 (red de jack trazada, B18-007) ---
         let triode_1_config = TriodeStageConfig {
             plate_resistor_ohms: circuit.channel.triode_1.plate_resistor_ohms,
             cathode_resistor_ohms: circuit.channel.triode_1.cathode_resistor_ohms,
-            grid_leak_ohms,
+            grid_leak_ohms: input_network.grid_load_ohms,
             supply_v,
             coupling_farads: None,
-            series_resistance_ohms: INPUT_SERIES_OHMS,
+            series_resistance_ohms: input_network.series_ohms,
             sample_rate_hz: processing_rate_hz,
         };
         let mut triode_1 = NonlinearTriodeStage::new(model, triode_1_config);
@@ -564,14 +577,16 @@ impl ChannelChain {
         }
 
         // --- Triodo 2 (rejilla desde el cursor del volumen) ---
+        // La red física (Ro, acoplo, potenciómetro) se habilita más abajo con
+        // `enable_volume_network`; `grid_leak_ohms`/`series_resistance_ohms`
+        // solo se usan en el reposo si la red no estuviera habilitada.
         let triode_2_config = TriodeStageConfig {
             plate_resistor_ohms: circuit.channel.triode_2.plate_resistor_ohms,
             cathode_resistor_ohms: circuit.channel.triode_2.cathode_resistor_ohms,
             grid_leak_ohms: volume_pot_ohms,
             supply_v,
             coupling_farads: None,
-            // Cota superior de la impedancia de Thevenin del potenciómetro.
-            series_resistance_ohms: volume_pot_ohms * 0.25,
+            series_resistance_ohms: volume_pot_ohms,
             sample_rate_hz: processing_rate_hz,
         };
         let mut triode_2 = NonlinearTriodeStage::new(model, triode_2_config);
@@ -601,17 +616,21 @@ impl ChannelChain {
             circuit.channel.triode_2.cathode_resistor_ohms,
         );
 
-        let coupling_1_total = output_impedance_1 + volume_pot_ohms;
-        let mut coupling_1 = OnePoleHighPass::new(
-            1.0 / (2.0 * PI * circuit.channel.coupling_cap_1_farads * coupling_1_total),
-            processing_rate_hz,
+        // Red de volumen física (B18-005): placa del 6SL7#1 detrás de su `Ro`,
+        // acoplo de 0.022 µF y potenciómetro a masa; el Newton del 6SL7#2
+        // resuelve la malla con la conducción de rejilla. Ya no hay paso alto
+        // ni ganancia de volumen fuera del solve.
+        triode_2.enable_volume_network(
+            output_impedance_1,
+            circuit.channel.coupling_cap_1_farads,
+            volume_pot_ohms,
         );
-        coupling_1.preset(triode_1.plate_voltage());
-        let coupling_1_gain = volume_pot_ohms / coupling_1_total;
+        triode_2.set_volume_fraction(volume_fraction(0.5));
 
         // El acoplo de 0.022 µF vive dentro del MNA del tono (B18-003): una
         // sola fuente de Thevenin (`Ro_6SL7`) y una sola pérdida de carga.
         // Ya no hay paso alto ni divisor externos al procesador.
+        let plate_1_dc = triode_1.plate_voltage();
         let plate_2_dc = triode_2.plate_voltage();
         let tone = ToneStackProcessor::new(
             *tone_design,
@@ -628,15 +647,13 @@ impl ChannelChain {
 
         Ok(Self {
             triode_1,
-            coupling_1,
-            coupling_1_gain,
+            plate_1_dc,
             triode_2,
             plate_2_dc,
             tone,
             volume: smoother(0.5),
             bass: smoother(0.5),
             treble: smoother(0.5),
-            volume_gain: MappedControl::new(),
         })
     }
 
@@ -686,15 +703,13 @@ impl ChannelChain {
     /// Restaura el estado desde el canal de reposo sin asignar memoria.
     fn restore_from(&mut self, other: &Self) {
         self.triode_1 = other.triode_1.clone();
-        self.coupling_1 = other.coupling_1;
-        self.coupling_1_gain = other.coupling_1_gain;
+        self.plate_1_dc = other.plate_1_dc;
         self.triode_2 = other.triode_2.clone();
         self.plate_2_dc = other.plate_2_dc;
         self.tone.restore_from(&other.tone);
         self.volume = other.volume;
         self.bass = other.bass;
         self.treble = other.treble;
-        self.volume_gain = other.volume_gain;
     }
 
     fn process(&mut self, input_volts: f64) -> f64 {
@@ -709,9 +724,9 @@ impl ChannelChain {
             treble: controls[2],
         });
         let plate_1 = self.triode_1.process(input_volts);
-        let drive_1 = self.coupling_1.process(plate_1) * self.coupling_1_gain;
-        let divided = drive_1 * self.volume_gain.get(volume_position, volume_fraction);
-        let plate_2 = self.triode_2.process(divided);
+        self.triode_2
+            .set_volume_fraction(volume_fraction(volume_position));
+        let plate_2 = self.triode_2.process(plate_1 - self.plate_1_dc);
         self.tone.process_sample(plate_2 - self.plate_2_dc)
     }
 }

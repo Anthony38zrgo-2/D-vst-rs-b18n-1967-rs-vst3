@@ -33,6 +33,22 @@
       "generated_by": "scripts/spice/tone_stack_coupled_sweep.py"
     },
     {
+      "path": "input_jacks/input_jacks_spice.csv",
+      "provenance": "independent-SPICE",
+      "sha256": "d249f19c354d9a7eea847771b6e484263151d3829988502622b448bcf30d3e4d",
+      "description": "Barrido de las redes de jack de entrada (B18-007): bass/guitar/instrument x 2 impedancias de fuente x 31 frecuencias.",
+      "conditions": "ngspice 47 sobre scripts/spice/b18n_input_jacks_1967.cir; divisor resistivo v(grid)/v(src); ver input_jacks/README.md.",
+      "generated_by": "scripts/spice/input_jacks_sweep.py"
+    },
+    {
+      "path": "volume_network/volume_network_spice.csv",
+      "provenance": "independent-SPICE",
+      "sha256": "870cdd81beb01e4f05dfc9e66e92a08449f491505a62eacd94c70fcd8b16d2fe",
+      "description": "Barrido de la red de volumen (B18-005): 4 posiciones del mando x 3 frecuencias (magnitud y fase).",
+      "conditions": "ngspice 47 sobre scripts/spice/b18n_volume_network_1967.cir; Ro=227.7 kOhm, acoplo 0.022 uF, pot 1 MOhm log a masa, rejilla abierta; H = v(cursor)/v(src).",
+      "generated_by": "scripts/spice/volume_network_sweep.py"
+    },
+    {
       "path": "phase_7199/b18n_7199_dc_1967_golden.txt",
       "provenance": "independent-SPICE",
       "sha256": "0dd2ad8a112b71690924606b239e23cce42f1401d6e536bb26a381ba2664ecef",

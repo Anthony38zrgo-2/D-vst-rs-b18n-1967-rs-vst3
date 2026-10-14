@@ -181,3 +181,10 @@ resolverse antes de comparar respuestas: indica cambio de modelo o de errata.
   plugin −16,5 → −20,0 dB para mantener la protección del host. `ALGORITHM_VERSION` →
   `…-tone-mna-speaker-v1`; render E2E nuevo: pico 5,1420, RMS 1,5610, offset +0,0030.
   Detalle en `CHANGELOG.md`.
+- **B18-005/006/007 (2026-10-14, rama `fix/preamp-loading`, cambio audible):** red de
+  volumen física resuelta en el Newton del 6SL7#2 (pot a masa, golden ngspice), mezclador
+  trazado sin fuga asumida (dos 270 kΩ directos al nodo de rejilla; manual V3/pin 7 =
+  220–330 kΩ) y jacks diferenciados (`bass` con el shunt de 100 kΩ del jack libre,
+  `guitar` sin él, `instrument` directo). `ALGORITHM_VERSION` →
+  `…-tone-mna-preamp-loading-speaker-v1`; render E2E nuevo: pico 4,8210, RMS 1,4451,
+  offset +0,0028; instancia stock del plugin 0,771 (−2,3 dBFS). Detalle en `CHANGELOG.md`.

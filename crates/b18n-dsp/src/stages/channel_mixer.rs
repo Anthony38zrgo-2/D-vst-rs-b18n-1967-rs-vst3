@@ -1,61 +1,55 @@
-//! Mezcla de canales: 270 kΩ por canal hacia un nodo común y acoplo de 0.05 µF
-//! hacia la rejilla de la 7199.
+//! Mezcla de canales: dos resistores de **270 kΩ** hacia un nodo común que es
+//! la rejilla del pentodo 7199 (pin 7), **acoplada en continua** (B18-006).
 //!
-//! Modelo resistivo documentado: los dos resistores de mezcla son idénticos,
-//! por lo que el nodo vale `g·(v1 + v2)` con
-//! `g = (1/Rm) / (2/Rm + 1/Rg)`. La fuga de rejilla `Rg = 1 MΩ` es una
-//! aproximación declarada en `docs/MODEL_ASSUMPTIONS.md` hasta digitalizar el
-//! nodo exacto (Hito D desarrollará la etapa completa).
+//! # Trazado (SCH-567 + tabla de resistencias del manual)
+//!
+//! Las salidas de ambos tonos se suman a través de 270 kΩ por canal
+//! (`channel_mixer_resistor_ohms`) en un nodo compartido que va **directo** a
+//! la rejilla del pentodo. No hay capacitor de 0.05 µF ni fuga de 1 MΩ en ese
+//! nodo: los 0.05 µF del esquema son los acoplos del inversor a las 7027A.
+//! Evidencia: la tabla `RESISTANCE READINGS` del manual mide en V3/pin 7
+//! **220 kΩ con Bass c.c.w.** y **330 kΩ con Bass c.w.**, valores que salen de
+//! `(270 kΩ + Z_tono) / 2` con las dos ramas en paralelo (véase el test
+//! `mixer_node_resistance_matches_manual_reading`).
+//!
+//! Con fuentes de tono idealizadas, el nodo vale `(v1 + v2) / 2`: el canal
+//! inactivo aporta su 270 kΩ a masa como carga real. La impedancia de salida
+//! de cada red de tono en serie con su 270 kΩ queda pendiente del nodo acoplado
+//! del inversor (B18-008), que resolverá la rejilla del pentodo con su red.
 
-use std::f64::consts::PI;
-
-use crate::utilities::filters::OnePoleHighPass;
-
-/// Mezclador pasivo de dos canales con acoplo.
-#[derive(Debug, Clone, PartialEq)]
+/// Mezclador pasivo de dos canales (nodo compartido resistivo).
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ChannelMixer {
-    node_gain: f64,
-    coupling: OnePoleHighPass,
     mixer_ohms: f64,
-    grid_leak_ohms: f64,
+    grid_load_ohms: Option<f64>,
 }
 
 impl ChannelMixer {
-    pub const DEFAULT_GRID_LEAK_OHMS: f64 = 1_000_000.0;
-
     /// `mixer_ohms` = resistor de mezcla por canal (270 kΩ en el JSON).
     #[must_use]
-    pub fn new(mixer_ohms: f64, coupling_farads: f64, sample_rate_hz: f64) -> Self {
-        Self::with_grid_leak(
-            mixer_ohms,
-            Self::DEFAULT_GRID_LEAK_OHMS,
-            coupling_farads,
-            sample_rate_hz,
-        )
-    }
-
-    #[must_use]
-    pub fn with_grid_leak(
-        mixer_ohms: f64,
-        grid_leak_ohms: f64,
-        coupling_farads: f64,
-        sample_rate_hz: f64,
-    ) -> Self {
-        let node_gain = (1.0 / mixer_ohms) / (2.0 / mixer_ohms + 1.0 / grid_leak_ohms);
-        let parallel = 1.0 / (1.0 / mixer_ohms + 1.0 / mixer_ohms);
-        let total = parallel + grid_leak_ohms;
-        let cutoff_hz = 1.0 / (2.0 * PI * coupling_farads * total);
+    pub fn new(mixer_ohms: f64) -> Self {
         Self {
-            node_gain,
-            coupling: OnePoleHighPass::new(cutoff_hz, sample_rate_hz),
             mixer_ohms,
-            grid_leak_ohms,
+            grid_load_ohms: None,
         }
     }
 
+    /// Variante con una carga explícita de rejilla (no trazada en 1967; se
+    /// conserva para ensayos de sensibilidad).
+    #[must_use]
+    pub fn with_grid_load(mixer_ohms: f64, grid_load_ohms: Option<f64>) -> Self {
+        Self {
+            mixer_ohms,
+            grid_load_ohms,
+        }
+    }
+
+    /// Ganancia del nodo para fuentes ideales: `g / (2g + G_rejilla)`.
     #[must_use]
     pub fn node_gain(&self) -> f64 {
-        self.node_gain
+        let g = 1.0 / self.mixer_ohms;
+        let load = self.grid_load_ohms.map_or(0.0, |ohms| 1.0 / ohms);
+        g / (2.0 * g + load)
     }
 
     #[must_use]
@@ -63,63 +57,72 @@ impl ChannelMixer {
         self.mixer_ohms
     }
 
-    #[must_use]
-    pub fn grid_leak_ohms(&self) -> f64 {
-        self.grid_leak_ohms
-    }
-
-    pub fn reset(&mut self) {
-        self.coupling.reset();
-    }
-
     /// Mezcla las tensiones de salida de tono de ambos canales.
-    pub fn process(&mut self, channel_1_volts: f64, channel_2_volts: f64) -> f64 {
-        self.coupling
-            .process(self.node_gain * (channel_1_volts + channel_2_volts))
+    #[must_use]
+    pub fn process(&self, channel_1_volts: f64, channel_2_volts: f64) -> f64 {
+        self.node_gain() * (channel_1_volts + channel_2_volts)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::circuit::test_circuit;
+    use crate::stages::tone_stack::{ToneStackControls, ToneStackDesign};
 
     #[test]
-    fn node_gain_matches_two_way_divider() {
-        let mixer = ChannelMixer::new(270_000.0, 5e-8, 48_000.0);
-        // Con ambos canales iguales: vN = 0.881·v (divisor 270k/270k con 1M).
-        let expected = (1.0 / 270_000.0) / (2.0 / 270_000.0 + 1.0 / 1_000_000.0);
-        assert!((mixer.node_gain() - expected).abs() < 1e-12);
-        assert!((2.0 * expected - 0.881).abs() < 0.01);
+    fn ideal_sources_sum_with_half_gain() {
+        let mixer = ChannelMixer::new(270_000.0);
+        assert!((mixer.node_gain() - 0.5).abs() < 1e-12);
+        // Ambos canales iguales: el nodo vale la señal completa.
+        assert!((mixer.process(1.0, 1.0) - 1.0).abs() < 1e-12);
     }
 
     #[test]
-    fn one_channel_idle_halves_contribution() {
-        let sample_rate = 48_000.0;
-        let sine = |index: usize| {
-            (2.0 * std::f64::consts::PI * 1_000.0 * index as f64 / sample_rate).sin()
-        };
-
-        let mut mixer = ChannelMixer::new(270_000.0, 5e-8, sample_rate);
-        let mut both_peak = 0.0_f64;
-        for index in 0..96_000 {
-            let output = mixer.process(sine(index), sine(index));
-            if index > 48_000 {
-                both_peak = both_peak.max(output.abs());
-            }
-        }
-
-        mixer.reset();
-        let mut single_peak = 0.0_f64;
-        for index in 0..96_000 {
-            let output = mixer.process(sine(index), 0.0);
-            if index > 48_000 {
-                single_peak = single_peak.max(output.abs());
-            }
-        }
-
+    fn idle_channel_loads_the_node() {
+        let mixer = ChannelMixer::new(270_000.0);
+        let both = mixer.process(1.0, 1.0);
+        let single = mixer.process(1.0, 0.0);
+        // El canal inactivo deja su 270 kΩ a masa: mitad exacta.
         assert!(
-            (both_peak - 2.0 * single_peak).abs() / both_peak < 1e-6,
-            "both {both_peak} single {single_peak}"
+            (both - 2.0 * single).abs() < 1e-12,
+            "both {both} single {single}"
         );
+    }
+
+    #[test]
+    fn explicit_grid_load_reduces_the_node() {
+        let with_load = ChannelMixer::with_grid_load(270_000.0, Some(1_000_000.0));
+        let expected = (1.0 / 270_000.0) / (2.0 / 270_000.0 + 1.0 / 1_000_000.0);
+        assert!((with_load.node_gain() - expected).abs() < 1e-12);
+        assert!(with_load.node_gain() < 0.5);
+    }
+
+    /// Tabla del manual (V3/pin 7): 220 kΩ con Bass c.c.w. y 330 kΩ con Bass
+    /// c.w. midiendo desde la rejilla a masa a través de los dos 270 kΩ y las
+    /// redes de tono (treble en el extremo de r_t_out≈0).
+    #[test]
+    fn mixer_node_resistance_matches_manual_reading() {
+        let design = ToneStackDesign::from_circuit(&test_circuit()).expect("red de tono");
+        let reading = |bass: f32| {
+            let z = design.dc_output_resistance(ToneStackControls { bass, treble: 1.0 });
+            (270_000.0 + z) / 2.0
+        };
+        let bass_cut = reading(0.0);
+        let bass_boost = reading(1.0);
+        if std::env::var_os("B18N_MIXER_REPORT").is_some() {
+            println!(
+                "V3/pin 7 (manual 220k/330k): Bass c.c.w. {bass_cut:.0} Ω; Bass c.w. {bass_boost:.0} Ω"
+            );
+        }
+        assert!(
+            (bass_cut - 220_000.0).abs() / 220_000.0 < 0.10,
+            "Bass c.c.w.: {bass_cut:.0} Ω"
+        );
+        assert!(
+            (bass_boost - 330_000.0).abs() / 330_000.0 < 0.10,
+            "Bass c.w.: {bass_boost:.0} Ω"
+        );
+        assert!(bass_boost > bass_cut);
     }
 }
