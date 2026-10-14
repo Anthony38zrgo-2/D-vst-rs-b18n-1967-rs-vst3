@@ -5,6 +5,50 @@ El versionado sigue SemVer una vez exista el primer bundle distribuible.
 
 ## [Unreleased]
 
+### Corregido — B18-002 (NFB a tasa efectiva + TPT, cambio audible)
+
+- **Polo de compensación de la NFB: construido con la tasa base → construido
+  con la tasa de proceso efectiva** (`sample_rate × oversampling`). El filtro
+  integraba `oversampling` veces por muestra del host con coeficientes de la
+  tasa base, de modo que el corte efectivo escalaba con el factor (≈5 kHz a 2×
+  y ≈10 kHz a 4×, en lugar de 2,5 kHz). El comentario que afirmaba que la
+  realimentación avanzaba una vez por muestra del host contradecía el flujo
+  real.
+- **Discretización del polo: Euler implícito (polo apareado) → TPT/bilineal con
+  prewarp.** El corte físico de 2,5 kHz pasa a ser exacto a cualquier tasa
+  (test unitario en `filters.rs`) y la fase en alta frecuencia se aproxima al
+  RC analógico (a 20 kHz: −13° → −87° a 1×). Decisión registrada con su
+  impacto medido: invariancia 1×/2×/4× de ≤0,64 dB/8,1° hasta 2,5 kHz y
+  ≤2,85 dB/15,7° hasta 5 kHz (antes: 3,5 dB/20° y 7,5 dB/12° a 48 kHz).
+- **`crates/b18n-dsp/tests/nfb_rate_invariance.rs` (nuevo):** senos pequeños a
+  44,1/48/96/192 kHz, latencia del sobremuestreo compensada, dispersión máxima
+  entre 1×/2×/4× con criterios provisionales documentados.
+- **Test de alias re-basado** (`alias_suppression.rs`): la comparación relativa
+  «4× mejora ≥5 dB» era un artefacto del polo dependiente del sobremuestreo.
+  Con el polo unificado a 2,5 kHz (medido a 4 V): 1× mejora de −27,5 a
+  −31,7 dBc; 4× pasa de −41,2 a −25,1 dBc (el 10 kHz efectivo anterior daba
+  más realimentación de HF, inconsistente con 1×). Se conserva la cota
+  absoluta ≤ −18 dBc en ambos factores y la pérdida de margen a 4× (alias
+  dominado por intermodulación en banda imagen×armónico, no removible por
+  decimación) queda registrada para B18-018.
+- `ALGORITHM_VERSION` →
+  `0.1.0-nonlinear-triodes-power-7199-inverter-nfb-25k-tpt-rate-2x-speaker-v1`;
+  render E2E del baseline: pico 3,0838 → 3,0776, RMS 1,0592 → 1,0571,
+  offset +0,00147 → +0,00140, latencia 47 (sin cambio).
+
+### Añadido — B18-001 (línea base reproducible)
+
+- **`docs/FIDELITY_BASELINE.md`**: commit, toolchain, hashes del modelo/errata/
+  calibración efectiva, resultados de `fmt`/`clippy`/tests (151 en verde) y
+  render offline del baseline, con las hipótesis no medidas declaradas.
+- **`assets/fixtures/reference/manifest.json`** +
+  **`scripts/check_reference_manifest.py`**: procedencia (`historical-manual`,
+  `manufacturer-datasheet`, `independent-SPICE`, `real-hardware`, `model-only`)
+  y SHA-256 de cada golden existente, verificables sin dependencias externas.
+- **`assets/fixtures/reference/full_amp/README.md`**: reglas de procedencia y
+  fixtures de cadena completa planificados (AC, DC, THD, transitorios, carga,
+  IR).
+
 ### Añadido — Ola 8 (Fase 1: presupuesto de CPU del plugin, cambio audible)
 
 - **`crates/b18n-plugin/tests/cpu_budget.rs`**: guardia de regresión del

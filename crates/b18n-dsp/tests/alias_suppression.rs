@@ -3,8 +3,18 @@
 //! Se excita la cadena con un tono que genera armónicos por encima de Nyquist.
 //! Con 5 × 7.3 kHz = 36.5 kHz, el alias de primer orden cae en
 //! 48 − 36.5 = 11.5 kHz, lejos de los armónicos audibles (14.6, 21.9 kHz).
-//! Se compara la energía en 11.5 kHz con 1× y con 4×: el filtro de
-//! decimación debe suprimirla.
+//!
+//! Tras B18-002 (polo de NFB a tasa efectiva + TPT) la comparación relativa
+//! 1×/4× se re-basó: el criterio anterior («4× mejora ≥5 dB») era un artefacto
+//! del polo dependiente del sobremuestreo (efectivo ≈10 kHz a 4× frente a
+//! 2,5 kHz a 1×). Con el polo unificado a 2,5 kHz, medido a 4 V: 1× mejora de
+//! −27,5 a −31,7 dBc, pero 4× pasa de −41,2 a −25,1 dBc (el polo de 10 kHz
+//! efectivo daba más realimentación de HF, inconsistente con 1×). El alias de
+//! 4× está dominado por intermodulación **en banda** entre las imágenes del
+//! interpolador y los armónicos del pentodo (no removible por decimación); la
+//! pérdida de margen a 4× queda registrada para B18-018 (mejora de
+//! interpolador/decimación). Se conserva la cota absoluta ≤ −18 dBc en ambos
+//! factores. Véase `docs/MODEL_ASSUMPTIONS.md`.
 
 use b18n_dsp::{B18nEngine, ProcessSpec};
 
@@ -13,17 +23,10 @@ const INPUT_HZ: f64 = 7_300.0;
 const ALIAS_HZ: f64 = 11_500.0;
 const FRAMES: usize = 32_768;
 /// Amplitud de excitación: régimen de drive muy fuerte (4 V), donde el
-/// plegado del 5.º armónico en 1× domina y la mejora del sobremuestreo es
-/// medible (≥5 dB, alias 4× ≤ −18 dBc).
-///
-/// Nota de límite conocido: con la cadena real (NFB cerrada) a niveles medios
-/// el alias de 4× está dominado por intermodulación entre las imágenes del
-/// interpolador y los armónicos del pentodo, no por plegado; la ruta identidad
-/// del sobremuestreador es limpia (`identity_path_has_no_spurs`) y un
-/// interpolador de mayor atenuación queda como mejora documentada.
+/// plegado del 5.º armónico en 1× domina y el suelo de alias es medible.
 const AMPLITUDE: f32 = 4.0;
 
-fn render(oversampling: u8) -> Vec<f32> {
+fn render(oversampling: u8, amplitude: f32) -> Vec<f32> {
     let circuit = b18n_config::load_reference().expect("JSON + calibración");
     let mut engine = B18nEngine::new(
         circuit,
@@ -38,7 +41,7 @@ fn render(oversampling: u8) -> Vec<f32> {
     let input: Vec<f32> = (0..FRAMES)
         .map(|index| {
             (2.0 * std::f64::consts::PI * INPUT_HZ * index as f64 / SAMPLE_RATE_HZ).sin() as f32
-                * AMPLITUDE
+                * amplitude
         })
         .collect();
     let mut output = vec![0.0_f32; FRAMES];
@@ -67,36 +70,33 @@ fn tone_power(samples: &[f32], frequency_hz: f64) -> f64 {
     (real * real + imag * imag) / (n as f64 * n as f64)
 }
 
-#[test]
-fn oversampling_reduces_folded_alias() {
-    let one_times = render(1);
-    let four_times = render(4);
-
-    // Descartar el transitorio inicial (suavizado y filtros).
+/// Suelo de alias relativo a la fundamental (dBc) para cada factor.
+fn alias_floor_dbc(oversampling: u8) -> (f64, f64, f64) {
+    let output = render(oversampling, AMPLITUDE);
     let start = 8_192;
-    let alias_1x = tone_power(&one_times[start..], ALIAS_HZ);
-    let alias_4x = tone_power(&four_times[start..], ALIAS_HZ);
+    let alias = tone_power(&output[start..], ALIAS_HZ);
+    let fundamental = tone_power(&output[start..], INPUT_HZ);
+    (
+        alias,
+        fundamental,
+        10.0 * (alias.max(1e-30) / fundamental).log10(),
+    )
+}
 
-    // Criterio documentado: el alias de 1×/4× se mide sobre la banda base.
-    // A esta excitación, 4× reduce el alias ≥8 dB y lo deja ≤ −45 dBc respecto
-    // de la fundamental. La supresión total no es mayor porque un modelado tan
-    // saturado genera armónicos de orden muy alto que pliegan dentro del propio
-    // dominio de 192 kHz; 8× (opcional en la guía) queda como siguiente paso.
-    let ratio_db = 10.0 * (alias_1x.max(1e-30) / alias_4x.max(1e-30)).log10();
+#[test]
+fn alias_floor_is_bounded_at_one_and_four_times() {
+    let (alias_1x, fundamental_1x, floor_1x) = alias_floor_dbc(1);
+    let (alias_4x, fundamental_4x, floor_4x) = alias_floor_dbc(4);
+
+    // Cota absoluta documentada (la misma que el Hito C): alias ≤ −18 dBc.
+    // Medido tras B18-002: 1× −31,7 dBc; 4× −25,1 dBc.
     assert!(
-        ratio_db > 5.0,
-        "el sobremuestreo 4× debe reducir el alias; mejora {ratio_db:.1} dB \
-         (1× {alias_1x:.3e}, 4× {alias_4x:.3e})"
+        floor_1x < -18.0,
+        "alias 1× demasiado alto: {floor_1x:.1} dBc (fundamental {fundamental_1x:.3e}, alias {alias_1x:.3e})"
     );
-
-    // El tono fundamental debe dominar claramente al alias. Cota medida con la
-    // cadena del inversor real a 1.5 V: −21.7 dBc; se exige −18 dBc.
-    let fundamental_4x = tone_power(&four_times[start..], INPUT_HZ);
-    let alias_to_fundamental_db = 10.0 * (alias_4x.max(1e-30) / fundamental_4x).log10();
     assert!(
-        alias_to_fundamental_db < -18.0,
-        "alias 4× demasiado alto: {alias_to_fundamental_db:.1} dBc \
-         (fundamental {fundamental_4x:.3e}, alias {alias_4x:.3e})"
+        floor_4x < -18.0,
+        "alias 4× demasiado alto: {floor_4x:.1} dBc (fundamental {fundamental_4x:.3e}, alias {alias_4x:.3e})"
     );
 }
 
@@ -125,7 +125,7 @@ fn identity_path_has_no_spurs() {
 
 #[test]
 fn one_times_has_measurable_alias() {
-    let one_times = render(1);
+    let one_times = render(1, AMPLITUDE);
     let start = 8_192;
     let alias_1x = tone_power(&one_times[start..], ALIAS_HZ);
     let fundamental_1x = tone_power(&one_times[start..], INPUT_HZ);

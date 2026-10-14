@@ -38,15 +38,25 @@ use crate::utilities::smoothing::SmoothedValue;
 /// que en el amplificador real limitan la ganancia de lazo. Se modela con un
 /// polo en el camino de realimentación; el margen se mide en `nfb_stability`.
 ///
-/// **Ola 8:** el corte pasa de 20 kHz a **2,5 kHz de la tasa base** y el polo
-/// se construye con la tasa base (antes se construía con la tasa de proceso,
-/// de modo que su corte *efectivo* variaba con el sobremuestreo). Con el
-/// solver exacto del inversor 7199 (Newton sin las diversas convergencias
-/// parciales de las bisecciones anidadas) el lazo idealizado era inestable a
-/// Nyquist: la barrera medida estable/inestable queda en 4–5 kHz efectivos a
-/// 44,1/48 kHz y por encima de 5 kHz a 96/192 kHz; 2,5 kHz dá margen en todo
-/// el rango y sigue reduciendo la ganancia de banda media (≈0,14×). Cambio
-/// audible: `ALGORITHM_VERSION` actualizada.
+/// **B18-002:** el polo se construye con la **tasa de proceso efectiva**
+/// (`sample_rate_hz × oversampling`), la misma a la que `LinearChain::process_sample`
+/// hace avanzar la realimentación. La construcción anterior usaba la tasa base
+/// mientras el filtro integraba `oversampling` veces por muestra del host, de
+/// modo que el corte efectivo escalaba con el factor de sobremuestreo
+/// (≈5 kHz a 2× y ≈10 kHz a 4×, en lugar de 2,5 kHz).
+///
+/// Además, la discretización de `OnePoleLowPass` pasó de Euler implícito (polo
+/// apareado) a **TPT/bilineal con prewarp**: el corte físico es exacto a
+/// cualquier tasa y la fase en HF se aproxima al RC analógico. El impacto de
+/// ambos pasos se midió por separado con la comparación 1×/2×/4× de
+/// `nfb_rate_invariance.rs` (dispersión final ≤0,64 dB/8,1° hasta 2,5 kHz;
+/// antes 3,5 dB/20° a 48 kHz).
+///
+/// El valor de 2,5 kHz sigue siendo **provisional**: no es una característica
+/// verificada del B-18N. Con el solver exacto del inversor 7199 el lazo
+/// idealizado se acercaba a inestabilidad a Nyquist; 2,5 kHz da margen en
+/// 44,1–192 kHz y mantiene la reducción de banda media (≈0,14×).
+/// Cambio audible: `ALGORITHM_VERSION` actualizada.
 const FEEDBACK_COMPENSATION_CUTOFF_HZ: f64 = 2_500.0;
 
 /// Tiempo de suavizado de mandos (guía §6.4: 5–30 ms).
@@ -316,7 +326,9 @@ struct LinearChain {
     output_gain: MappedControl,
     channel: InputChannel,
     /// Realimentación negativa (separación explícita `z^-1`, aproximación
-    /// declarada): la muestra de la toma de 16 Ω se usa en el sample siguiente.
+    /// declarada): la muestra de la toma de 16 Ω se usa en el sample siguiente
+    /// de la tasa de proceso efectiva (no del host); el `z^-1` y el polo de
+    /// compensación avanzan al mismo ritmo.
     feedback_enabled: bool,
     feedback_tap_gain: f64,
     feedback_polarity: f64,
@@ -405,14 +417,11 @@ impl LinearChain {
             // la tiene). El test de lazo lo verifica.
             feedback_polarity: -1.0,
             feedback_state: 0.0,
-            // El polo se construye con la **tasa base**: el camino de
-            // realimentación avanza una muestra por sample del host, no por
-            // muestra sobremuestreada (antes el corte efectivo variaba con el
-            // factor de sobremuestreo).
-            feedback_lowpass: OnePoleLowPass::new(
-                FEEDBACK_COMPENSATION_CUTOFF_HZ,
-                spec.sample_rate_hz,
-            ),
+            // El polo se construye con la **tasa de proceso efectiva**: este es
+            // el ritmo al que `process_sample` avanza la realimentación, así que
+            // el corte físico es el mismo a 1×/2×/4× (B18-002; antes se construía
+            // con la tasa base y el corte efectivo escalaba con el sobremuestreo).
+            feedback_lowpass: OnePoleLowPass::new(FEEDBACK_COMPENSATION_CUTOFF_HZ, processing_rate),
         })
     }
 
@@ -477,7 +486,8 @@ impl LinearChain {
         let mixed = self.mixer.process(channel_1, channel_2);
         // Inversor real de la 7199 con realimentación negativa al cátodo del
         // pentodo. La separación es explícita `z^-1`: la muestra de la toma de
-        // 16 Ω (del sample anterior) se inyecta en el cátodo.
+        // 16 Ω (del sample anterior de la tasa de proceso) se inyecta en el
+        // cátodo. Este `z^-1` no es un retardo de muestra del host.
         let feedback = if self.feedback_enabled {
             self.feedback_lowpass.process(self.feedback_state) * self.feedback_polarity
         } else {

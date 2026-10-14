@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "provenance_classes": [
+    "historical-manual",
+    "manufacturer-datasheet",
+    "independent-SPICE",
+    "real-hardware",
+    "model-only"
+  ],
+  "entries": [
+    {
+      "path": "tone_stack/tone_stack_spice.csv",
+      "provenance": "independent-SPICE",
+      "sha256": "a50168d0afe42ca10fa44407810ee8924597f6a311615ef7a3b84d315c2ce3ba",
+      "description": "Barrido de la red de tono James/Baxandall 25 combinaciones Bass/Treble x 31 frecuencias (magnitud y fase).",
+      "conditions": "ngspice 47 sobre scripts/spice/b18n_tone_1967.cir; tone stack aislado con fuente de tension ideal; ver assets/fixtures/reference/tone_stack/README.md.",
+      "generated_by": "scripts/spice/tone_stack_sweep.py"
+    },
+    {
+      "path": "tone_stack/tone_stack_numpy.csv",
+      "provenance": "model-only",
+      "sha256": "be19263837919ac262e17a4c626c048dcb7f077b30fa98ee6eb7d0519ed2ed88",
+      "description": "Barrido equivalente de la red de tono calculado con numpy (comprobacion numerica interna).",
+      "conditions": "Derivado del mismo netlist que el golden SPICE; no es una referencia fisica independiente.",
+      "generated_by": "scripts/tone_stack_reference.py"
+    },
+    {
+      "path": "phase_7199/b18n_7199_dc_1967_golden.txt",
+      "provenance": "independent-SPICE",
+      "sha256": "0dd2ad8a112b71690924606b239e23cce42f1401d6e536bb26a381ba2664ecef",
+      "description": "Punto de operacion DC del inversor 7199 (pentodo + triodo split-load).",
+      "conditions": "ngspice 47 sobre scripts/spice/b18n_7199_dc_1967.cir; R(pin3, masa) = 150 kOhm (equipo apagado); ver phase_7199/README.md.",
+      "generated_by": "scripts/spice/run_spice.py"
+    },
+    {
+      "path": "phase_7199/b18n_7199_ac_1967_golden.csv",
+      "provenance": "independent-SPICE",
+      "sha256": "3f935296d7f6e3740664d59faa7f6974b6510334d781b31773ab229c0831b2ff",
+      "description": "Respuesta AC (magnitud y fase) del inversor 7199.",
+      "conditions": "ngspice 47 sobre scripts/spice/b18n_7199_ac_1967.cir; ver phase_7199/README.md.",
+      "generated_by": "scripts/spice/phase_inverter_reference.py"
+    },
+    {
+      "path": "phase_7199/b18n_7199_tran_1967_golden.txt",
+      "provenance": "independent-SPICE",
+      "sha256": "857fd6554804b76b563225fdea6e94c32b53ff5c6252c7412428771871583d62",
+      "description": "Transitorio del inversor 7199 con excitacion pequena y grande.",
+      "conditions": "ngspice 47 sobre scripts/spice/b18n_7199_tran_1967.cir; ver phase_7199/README.md.",
+      "generated_by": "scripts/spice/run_spice.py"
+    },
+    {
+      "path": "phase_7199/b18n_7199_meter_loading_golden.txt",
+      "provenance": "historical-manual",
+      "sha256": "7d3e325738efe9db4c6cd4838f59be4e9525637c35e32214f3147cbd2915c6c3",
+      "description": "Lectura cargada del nodo de rejilla del triodo 7199 con voltimetro de 20.000 Ohm/V (rango 250 V).",
+      "conditions": "Contraste manual de servicio 1967 (65 V) con la carga del instrumento simulado; ver phase_7199/README.md.",
+      "generated_by": "scripts/spice/run_spice.py"
+    }
+  ]
+}

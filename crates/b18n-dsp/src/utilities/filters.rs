@@ -59,10 +59,17 @@ impl OnePoleHighPass {
     }
 }
 
-/// Paso bajo de primer orden (filtros de oversampling simples).
+/// Paso bajo de primer orden (TPT/bilineal con prewarp).
+///
+/// Discretización bilineal con prewarp de la frecuencia de corte
+/// `H(s) = 1/(1 + s/ωc)`:
+/// `G = g/(1+g)`, `v = (x − s)·G`, `y = v + s`, `s = y + v` con
+/// `g = tan(π·fc/fs)`. La magnitud vale **exactamente −3 dB en `fc`** para
+/// cualquier tasa de muestreo (a diferencia del polo apareado por Euler
+/// implícito, cuya fase en alta frecuencia se alejaba del RC analógico).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct OnePoleLowPass {
-    alpha: f64,
+    gain: f64,
     state: f64,
 }
 
@@ -70,7 +77,7 @@ impl OnePoleLowPass {
     #[must_use]
     pub fn new(cutoff_hz: f64, sample_rate_hz: f64) -> Self {
         let mut filter = Self {
-            alpha: 1.0,
+            gain: 0.5,
             state: 0.0,
         };
         filter.set_cutoff(cutoff_hz, sample_rate_hz);
@@ -78,9 +85,8 @@ impl OnePoleLowPass {
     }
 
     pub fn set_cutoff(&mut self, cutoff_hz: f64, sample_rate_hz: f64) {
-        let dt = 1.0 / sample_rate_hz;
-        let rc = 1.0 / (2.0 * std::f64::consts::PI * cutoff_hz);
-        self.alpha = dt / (rc + dt);
+        let g = (std::f64::consts::PI * cutoff_hz / sample_rate_hz).tan();
+        self.gain = g / (1.0 + g);
     }
 
     pub fn reset(&mut self) {
@@ -88,8 +94,10 @@ impl OnePoleLowPass {
     }
 
     pub fn process(&mut self, input: f64) -> f64 {
-        self.state += self.alpha * (input - self.state);
-        self.state
+        let delta = (input - self.state) * self.gain;
+        let output = delta + self.state;
+        self.state = output + delta;
+        output
     }
 }
 
@@ -130,5 +138,32 @@ mod tests {
             output = filter.process(1.0);
         }
         assert!((output - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn low_pass_is_minus_three_db_at_cutoff_for_every_rate() {
+        for rate_hz in [44_100.0, 48_000.0, 96_000.0, 192_000.0] {
+            let cutoff_hz = 2_500.0;
+            let mut filter = OnePoleLowPass::new(cutoff_hz, rate_hz);
+            let frames = 96_000;
+            let omega = 2.0 * std::f64::consts::PI * cutoff_hz / rate_hz;
+            let tail = frames / 2;
+            let (mut re, mut im) = (0.0, 0.0);
+            for index in 0..frames {
+                let input = (omega * index as f64).sin();
+                let output = filter.process(input);
+                if index >= tail {
+                    let angle = omega * index as f64;
+                    re += output * angle.cos();
+                    im -= output * angle.sin();
+                }
+            }
+            let magnitude = re.hypot(im) / (tail as f64 / 2.0);
+            let db = 20.0 * magnitude.log10();
+            assert!(
+                (db + 3.0103).abs() < 0.05,
+                "tasa {rate_hz}: {db:.4} dB en fc"
+            );
+        }
     }
 }

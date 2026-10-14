@@ -103,12 +103,15 @@ pentodo, pin 8 cátodo del triodo, pin 9 rejilla del triodo.
   de tensión» (el pentodo). El retorno es DC-consistente con pin 6 = 1,8 V
   (22 kΩ a ~0 V ⇒ 0,08 mA). La **150 kΩ** de esa zona es la resistencia de pantalla
   (pin 3) a masa, no un componente del lazo.
-  *Estado:* **cerrado (P1.6)**. Implementado con separación explícita `z^-1` y
-  compensación en el camino de realimentación (**2,5 kHz de la tasa base desde
-  la Ola 8**, antes 20 kHz y construido con la tasa de proceso: la barrera
-  estable/inestable medida con el solver exacto del inversor queda en 4–5 kHz
-  efectivos a 44,1/48 kHz; los parásitos de HF no modelados documentados),
-  márgenes medidos en `crates/b18n-dsp/tests/nfb_stability.rs`. Golden DC con
+  *Estado:* **cerrado (P1.6; polo corregido en B18-002)**. Implementado con
+  separación explícita `z^-1` **de la tasa de proceso efectiva** y polo de
+  compensación **provisional** a 2,5 kHz (declarado: no es una característica
+  verificada del B-18N; los parásitos de HF no modelados están documentados).
+  Desde B18-002 el polo se construye con la tasa de proceso efectiva y TPT con
+  prewarp, de modo que su corte físico no depende del factor de sobremuestreo
+  (antes, con la tasa base, el corte efectivo era ≈fc×OS). Invariancia medida
+  en `crates/b18n-dsp/tests/nfb_rate_invariance.rs` y estabilidad en
+  `crates/b18n-dsp/tests/nfb_stability.rs`. Golden DC con
   NFB: `scripts/spice/b18n_7199_nfb_dc_1967.cir` (pin 2 = 85,2 V, pin 6 = 1,87 V).
 
 ### Etapa de potencia (2 × 7027A)

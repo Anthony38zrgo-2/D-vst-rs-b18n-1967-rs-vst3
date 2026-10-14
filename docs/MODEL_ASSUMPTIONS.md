@@ -109,27 +109,38 @@ hardware de 1967.
   impulso, el cálculo anterior de 93 duplicaba el retardo por etapa) y su ruta identidad es limpia (espurios
   < −300 dB). Con la cadena del inversor, el alias 4× está dominado por
   **intermodulación entre las imágenes del interpolador y los armónicos** del
-  pentodo (medido ≈−22 dBc a 1,5 V; el test exige −18 dBc y +5 dB de mejora
-  frente a 1×). Un interpolador de mayor atenuación queda como mejora
-  documentada.
-- **NFB (P1.6, implementada; corte de compensación ajustado en la Ola 8):** 22 kΩ
+  pentodo (medido ≈−22 dBc a 1,5 V). Tras B18-002 el test exige cota absoluta
+  ≤ −18 dBc en 1× y 4× (medido a 4 V: −31,7 y −25,1 dBc; la comparación
+  relativa «+5 dB a favor de 4×» era un artefacto del polo de NFB dependiente
+  del sobremuestreo). Un interpolador de mayor atenuación queda como mejora
+  documentada (B18-018).
+- **NFB (P1.6, implementada; polo corregido en B18-002):** 22 kΩ
   desde la toma de 16 Ω al **cátodo del pentodo** (topología del AN-183 y del
   flag «F» del raster; DC consistente con pin 6 = 1,8 V). Separación **explícita
   `z^-1`** (aproximación declarada): la muestra de la toma se inyecta un sample
-  después. El modelo no incluye los parásitos de HF del tubo/transformador que
-  limitan la ganancia de lazo en el amplificador real, así que el camino de
-  realimentación lleva un **polo de compensación a 2,5 kHz de la tasa base**
-  (declarado; Ola 8: antes 20 kHz y construido con la tasa de proceso, de modo
-  que su corte *efectivo* variaba con el sobremuestreo). Con el solver exacto
-  del inversor (Newton sin bisecciones anidadas) el lazo idealizado resultó
-  inestable a Nyquist: la barrera medida estable/inestable queda en 4–5 kHz
-  efectivos a 44,1/48 kHz y por encima de 5 kHz a 96/192 kHz; 2,5 kHz da margen
-  en todo el rango y sigue reduciendo la ganancia de banda media (≈0,14×).
-  Cambio audible registrado con `ALGORITHM_VERSION`
-  (`…-nfb-25k-comp-4x`). La polaridad del arrollamiento de 16 Ω no está
-  documentada: se asume la que produce realimentación negativa (verificada por
-  la reducción de ganancia ≈7× y la ausencia de oscilación sostenida en
-  `nfb_stability.rs` a 44,1–192 kHz, cargas 8/16 Ω y drives hasta 4 V).
+  después, **de la tasa de proceso efectiva** (`tasa base × oversampling`). El
+  modelo no incluye los parásitos de HF del tubo/transformador que limitan la
+  ganancia de lazo en el amplificador real, así que el camino de realimentación
+  lleva un **polo de compensación a 2,5 kHz** (declarado, **provisional**: no es
+  una característica verificada del B-18N). Desde B18-002 el polo se construye
+  con la **tasa de proceso efectiva** y con discretización **TPT/bilineal con
+  prewarp** (magnitud exacta −3 dB en 2,5 kHz a cualquier tasa, verificada en
+  `filters.rs`); antes se construía con la tasa base mientras el filtro
+  integraba `oversampling` veces por muestra, de modo que el corte efectivo
+  escalaba con el factor (≈5 kHz a 2×, ≈10 kHz a 4×) y su fase en HF se alejaba
+  del RC analógico (Euler: −13° a 20 kHz a 1×; TPT: −87°). Invariancia medida
+  entre 1×/2×/4× (`nfb_rate_invariance.rs`, senos pequeños, latencia
+  compensada): dispersión ≤0,64 dB/8,1° hasta 2,5 kHz y ≤2,85 dB/15,7° hasta
+  5 kHz (antes: 3,5 dB/20° y 7,5 dB/12° a 48 kHz). El residuo en 4–5 kHz está
+  dominado por el `z^-1` de una muestra de proceso (mayor a 1×; se retira en
+  B18-009) y por la discretización de los acoplos. Cambio audible registrado
+  con `ALGORITHM_VERSION` (`…-nfb-25k-tpt-rate-2x-speaker-v1`): render E2E del
+  baseline pico 3,0838 → 3,0776, RMS 1,0592 → 1,0571, offset +0,00147 →
+  +0,00140. La polaridad del arrollamiento de 16 Ω no está documentada: se
+  asume la que produce realimentación negativa (verificada por la reducción de
+  ganancia ≈7× y la ausencia de oscilación sostenida en `nfb_stability.rs` a
+  44,1–192 kHz, cargas 8/16 Ω y drives hasta 4 V). El margen formal de lazo
+  abierto queda pendiente de B18-008/B18-009.
 - **Bloqueo de continua del OT:** el transformador no pasa continua; se modela
   con un paso alto de **1 Hz** (cota conservadora asumida; la inductancia real
   de primario llega con P2). También elimina el offset de secundario.
