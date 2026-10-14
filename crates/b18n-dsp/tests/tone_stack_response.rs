@@ -13,6 +13,11 @@ const REFERENCE_CSV: &str =
 const SPICE_CSV: &str =
     include_str!("../../../assets/fixtures/reference/tone_stack/tone_stack_spice.csv");
 
+/// Acoplo de placa del 6SL7#2 dentro del MNA del tono (B18-003).
+const COUPLED_SPICE_CSV: &str =
+    include_str!("../../../assets/fixtures/reference/tone_stack/tone_stack_coupled_spice.csv");
+const COUPLING_FARADS: f64 = 2.2e-8;
+
 const SOURCE_OHMS: f64 = 100_000.0;
 const LOAD_OHMS: f64 = 270_000.0;
 
@@ -141,6 +146,74 @@ fn matches_ngspice_reference() {
     }
 
     assert_eq!(compared, EXPECTED_ROWS, "referencia SPICE incompleta");
+    assert!(worst_magnitude_db < 1e-6);
+    assert!(worst_phase_deg < 1e-4);
+}
+
+/// Contraste contra ngspice del **acoplo de placa + red de tono** (B18-003):
+/// fuente de 1 V tras 100 kΩ, capacitor de 0.022 µF y la misma red con carga
+/// de 270 kΩ. Golden `tone_stack_coupled_spice.csv` generado por
+/// `scripts/spice/tone_stack_coupled_sweep.py`; el fixture aislado anterior
+/// se conserva sin cambios.
+#[test]
+fn matches_ngspice_coupled_reference() {
+    let circuit = b18n_config::load_reference().expect("JSON canónico válido");
+    let design = ToneStackDesign::from_circuit(&circuit).expect("red de tono completa");
+
+    let mut compared = 0_usize;
+    let mut worst_magnitude_db = 0.0_f64;
+    let mut worst_phase_deg = 0.0_f64;
+
+    for (index, line) in COUPLED_SPICE_CSV.lines().enumerate() {
+        if index == 0 {
+            continue; // cabecera
+        }
+        let mut fields = line.split(',');
+        let parse = |field: Option<&str>| -> f64 {
+            field
+                .expect("campo presente")
+                .trim()
+                .parse()
+                .expect("campo numérico")
+        };
+        let bass = parse(fields.next()) as f32;
+        let treble = parse(fields.next()) as f32;
+        let frequency = parse(fields.next());
+        let expected_magnitude_db = parse(fields.next());
+        let expected_phase_deg = parse(fields.next());
+
+        let response = design
+            .frequency_response_with_input_coupling(
+                ToneStackControls { bass, treble },
+                frequency,
+                SOURCE_OHMS,
+                COUPLING_FARADS,
+                LOAD_OHMS,
+            )
+            .expect("sistema resoluble");
+
+        let magnitude_error = (response.magnitude_db() - expected_magnitude_db).abs();
+        let phase_error = (response.phase_deg() - expected_phase_deg).abs();
+        worst_magnitude_db = worst_magnitude_db.max(magnitude_error);
+        worst_phase_deg = worst_phase_deg.max(phase_error);
+        compared += 1;
+
+        assert!(
+            magnitude_error < 1e-6,
+            "SPICE acoplado: magnitud fuera de tolerancia en bass={bass} treble={treble} \
+             f={frequency}: {magnitude_error} dB"
+        );
+        assert!(
+            phase_error < 1e-4,
+            "SPICE acoplado: fase fuera de tolerancia en bass={bass} treble={treble} \
+             f={frequency}: {phase_error}°"
+        );
+    }
+
+    assert_eq!(
+        compared, EXPECTED_ROWS,
+        "referencia SPICE acoplada incompleta"
+    );
     assert!(worst_magnitude_db < 1e-6);
     assert!(worst_phase_deg < 1e-4);
 }

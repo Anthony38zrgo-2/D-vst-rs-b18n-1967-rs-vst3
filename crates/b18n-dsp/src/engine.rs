@@ -512,15 +512,17 @@ impl LinearChain {
     }
 }
 
-/// Cadena de un canal: 6SL7#1, acoplo, volumen, 6SL7#2, acoplo y tono.
+/// Cadena de un canal: 6SL7#1, acoplo, volumen, 6SL7#2, acoplo integrado en
+/// el MNA del tono (B18-003).
 #[derive(Clone)]
 struct ChannelChain {
     triode_1: NonlinearTriodeStage,
     coupling_1: OnePoleHighPass,
     coupling_1_gain: f64,
     triode_2: NonlinearTriodeStage,
-    coupling_2: OnePoleHighPass,
-    coupling_2_gain: f64,
+    /// Tensión de placa del 6SL7#2 en reposo: el tono recibe la desviación AC
+    /// (el acoplo de 0.022 µF del MNA la deriva respecto de ella).
+    plate_2_dc: f64,
     tone: ToneStackProcessor,
     volume: SmoothedValue,
     bass: SmoothedValue,
@@ -607,20 +609,15 @@ impl ChannelChain {
         coupling_1.preset(triode_1.plate_voltage());
         let coupling_1_gain = volume_pot_ohms / coupling_1_total;
 
-        let tone_series_ohms = tone_design.series_resistor_ohms;
-        let coupling_2_total = output_impedance_2 + tone_series_ohms;
-        let mut coupling_2 = OnePoleHighPass::new(
-            1.0 / (2.0 * PI * circuit.channel.coupling_cap_2_farads * coupling_2_total),
-            processing_rate_hz,
-        );
-        coupling_2.preset(triode_2.plate_voltage());
-        let coupling_2_gain = tone_series_ohms / coupling_2_total;
-
-        // La red de tono corre a la tasa de proceso (ya sobremuestreada).
+        // El acoplo de 0.022 µF vive dentro del MNA del tono (B18-003): una
+        // sola fuente de Thevenin (`Ro_6SL7`) y una sola pérdida de carga.
+        // Ya no hay paso alto ni divisor externos al procesador.
+        let plate_2_dc = triode_2.plate_voltage();
         let tone = ToneStackProcessor::new(
             *tone_design,
             output_impedance_2,
             circuit.channel.channel_mixer_resistor_ohms,
+            circuit.channel.coupling_cap_2_farads,
             processing_rate_hz,
             1,
         );
@@ -634,8 +631,7 @@ impl ChannelChain {
             coupling_1,
             coupling_1_gain,
             triode_2,
-            coupling_2,
-            coupling_2_gain,
+            plate_2_dc,
             tone,
             volume: smoother(0.5),
             bass: smoother(0.5),
@@ -693,8 +689,7 @@ impl ChannelChain {
         self.coupling_1 = other.coupling_1;
         self.coupling_1_gain = other.coupling_1_gain;
         self.triode_2 = other.triode_2.clone();
-        self.coupling_2 = other.coupling_2;
-        self.coupling_2_gain = other.coupling_2_gain;
+        self.plate_2_dc = other.plate_2_dc;
         self.tone.restore_from(&other.tone);
         self.volume = other.volume;
         self.bass = other.bass;
@@ -717,8 +712,7 @@ impl ChannelChain {
         let drive_1 = self.coupling_1.process(plate_1) * self.coupling_1_gain;
         let divided = drive_1 * self.volume_gain.get(volume_position, volume_fraction);
         let plate_2 = self.triode_2.process(divided);
-        let tone_input = self.coupling_2.process(plate_2) * self.coupling_2_gain;
-        self.tone.process_sample(tone_input)
+        self.tone.process_sample(plate_2 - self.plate_2_dc)
     }
 }
 

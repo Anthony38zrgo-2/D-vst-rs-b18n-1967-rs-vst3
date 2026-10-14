@@ -5,6 +5,37 @@ El versionado sigue SemVer una vez exista el primer bundle distribuible.
 
 ## [Unreleased]
 
+### Corregido — B18-003 (acoplo 0,022 µF integrado en el MNA del tono, cambio audible)
+
+- **Doble atenuación del camino de tono eliminada.** El motor aplicaba un paso
+  alto externo (0,022 µF) más un divisor `220k/(Ro+220k)` y además
+  `ToneStackProcessor` estampaba `Ro` como fuente en su MNA: la fuente y la
+  carga se contaban dos veces (~6 dB de pérdida espuria) y el corte del acoplo
+  no seguía a las posiciones de Bass/Treble. Ahora el MNA tiene un nodo
+  `SOURCE` (placa AC del 6SL7#2 detrás de `Ro`), **una sola** fuente de Thevenin
+  y el capacitor de acoplo entre `SOURCE` e `IN`; el motor entrega la desviación
+  AC de placa. El bloqueo de continua lo hace el propio capacitor.
+- **`frequency_response_with_input_coupling`** (nueva API AC explícita) y golden
+  SPICE del circuito completo (`scripts/spice/b18n_tone_coupled_1967.cir` +
+  `tone_stack_coupled_sweep.py` → `tone_stack_coupled_spice.csv`): contraste de
+  magnitud **y fase** a 1e-6 dB / 1e-4° en 25 combinaciones × 31 frecuencias.
+  La API de tono aislado y su fixture se conservan sin cambios.
+- **Tests nuevos**: bloqueo de continua del acoplo, equivalencia
+  tasa×oversampling, respuesta temporal vs AC, direcciones de los mandos con
+  acoplo, y el contraste ngspice acoplado.
+- **Trim de salida por defecto del plugin: −16,5 → −20,0 dB.** La corrección
+  sube la cadena ≈3,4 dB a 110/220 Hz; el nuevo valor devuelve la instancia
+  por defecto a ≈0,82 (−1,7 dBFS) y mantiene la protección del host
+  (`daw_levels`).
+- **Test de alias recalibrado de 4 V a 2 V** (mismo drive interno tras quitar
+  el doble atenuador): 1× −32,3 dBc y 4× −28,7 dBc, bajo la cota ≤ −18 dBc.
+  Queda registrado que con ≥2,5 V/7,3 kHz el Newton del inversor 7199 congela
+  samples; la robustez de esa etapa es alcance de B18-008.
+- `ALGORITHM_VERSION` →
+  `0.1.0-nonlinear-triodes-power-7199-inverter-nfb-25k-tpt-rate-2x-tone-mna-speaker-v1`;
+  render E2E: pico 3,0776 → 5,1420, RMS 1,0571 → 1,5610, offset +0,0014 →
+  +0,0030, latencia 47 (sin cambio).
+
 ### Corregido — B18-004 (tiempo de suavizado de los trims, sin cambio de sonido en régimen)
 
 - **Trims de entrada/salida: 15 ms físicos en todos los factores.** El tiempo

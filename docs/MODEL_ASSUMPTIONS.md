@@ -10,10 +10,11 @@ hardware de 1967.
   `1.0 V` de pico **antes** de `InputTrimDb`. Es una calibración de software documentada,
   no una medida histórica.
 - `InputTrimDb` y `OutputTrimDb` son adaptaciones modernas DAW↔voltios. El **trim de
-  salida por defecto del plugin es −16,5 dB** (Ola 8): con senos de graves a escala
-  completa la instancia nueva producía pico 5,57 y rebasaba la escala digital del host;
-  el valor elegido deja esa instancia en ≈0,83 (−1,6 dBFS) y es una decisión de adaptación
-  de nivel, no una característica del amplificador.
+  salida por defecto del plugin es −20,0 dB** (Ola 8; recalibrado en B18-003 tras
+  corregir el doble atenuador del tono, que sube la cadena ≈3,4 dB a 110/220 Hz): con
+  senos de graves a escala completa la instancia nueva queda en ≈0,82 (−1,7 dBFS) y no
+  rebasa la escala digital del host. Es una decisión de adaptación de nivel, no una
+  característica del amplificador.
 - Los mandos de una instancia nueva **saltan directo** a sus objetivos (`snap` en la
   primera configuración y tras `reset`): sin rampa de suavizado a ganancia previa al
   arranque. El suavizado de gestos es de **15 ms físicos** en todas las tasas y factores
@@ -35,6 +36,15 @@ hardware de 1967.
   `g·(v1+v2)`, `g = (1/Rm)/(2/Rm + 1/Rg)`. No se modela la impedancia de salida del canal
   inactivo (Hito D la desarrollará).
 - **Carga de la red de tono:** 270 kΩ (resistor de mezcla) para las curvas estándar.
+- **Acoplo del tono (B18-003):** el capacitor de **0.022 µF** de la placa del 6SL7#2
+  está integrado en el MNA del tono junto con la resistencia de fuente `Ro` (una sola
+  fuente de Thevenin en el nodo `SOURCE`, capacitor hacia `IN`). El motor entrega la
+  desviación AC de placa; la continua queda bloqueada por el propio capacitor y la
+  atenuación de carga depende de las posiciones Bass/Treble. Antes existía un paso alto
+  externo de corte fijo más un divisor con la misma `Ro`, que duplicaba la pérdida
+  (~6 dB) y hacía que el corte no siguiera a la red. Contraste contra ngspice del
+  circuito completo (fuente + `Ro` + 0.022 µF + red + carga) a 1e-6 dB / 1e-4° en
+  `assets/fixtures/reference/tone_stack/tone_stack_coupled_spice.csv`.
 - **Ganancia de la cadena:** con el inversor 7199 real (P1.4) la cadena tiene
   ~45× más ganancia que con el inversor ideal del Hito B; el control de salida
   permite ajustarla. El OT sigue siendo ideal con DCR (bloqueo de continua del
@@ -113,10 +123,11 @@ hardware de 1967.
   < −300 dB). Con la cadena del inversor, el alias 4× está dominado por
   **intermodulación entre las imágenes del interpolador y los armónicos** del
   pentodo (medido ≈−22 dBc a 1,5 V). Tras B18-002 el test exige cota absoluta
-  ≤ −18 dBc en 1× y 4× (medido a 4 V: −31,7 y −25,1 dBc; la comparación
-  relativa «+5 dB a favor de 4×» era un artefacto del polo de NFB dependiente
-  del sobremuestreo). Un interpolador de mayor atenuación queda como mejora
-  documentada (B18-018).
+  ≤ −18 dBc en 1× y 4×, y B18-003 recalibró la excitación de 4 V a 2 V (el acoplo
+  integrado elimina ~6 dB de atenuación doble): medido a 2 V, −32,3 y −28,7 dBc; la
+  comparación relativa «+5 dB a favor de 4×» era un artefacto del polo de NFB
+  dependiente del sobremuestreo. Un interpolador de mayor atenuación queda como
+  mejora documentada (B18-018).
 - **NFB (P1.6, implementada; polo corregido en B18-002):** 22 kΩ
   desde la toma de 16 Ω al **cátodo del pentodo** (topología del AN-183 y del
   flag «F» del raster; DC consistente con pin 6 = 1,8 V). Separación **explícita

@@ -25,6 +25,14 @@
       "generated_by": "scripts/tone_stack_reference.py"
     },
     {
+      "path": "tone_stack/tone_stack_coupled_spice.csv",
+      "provenance": "independent-SPICE",
+      "sha256": "4bc7cb3b528cda73f6703598ffac7bc606bf1253d6b4b0905466cdc289eecc7a",
+      "description": "Barrido del acoplo de placa + red de tono (B18-003): 25 combinaciones Bass/Treble x 31 frecuencias (magnitud y fase).",
+      "conditions": "ngspice 47 sobre scripts/spice/b18n_tone_coupled_1967.cir; fuente AC de 1 V tras Ro=100 kOhm, acoplo 0.022 uF, carga 270 kOhm; H = v(out)/v(src).",
+      "generated_by": "scripts/spice/tone_stack_coupled_sweep.py"
+    },
+    {
       "path": "phase_7199/b18n_7199_dc_1967_golden.txt",
       "provenance": "independent-SPICE",
       "sha256": "0dd2ad8a112b71690924606b239e23cce42f1401d6e536bb26a381ba2664ecef",

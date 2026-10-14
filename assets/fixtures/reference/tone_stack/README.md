@@ -6,14 +6,22 @@
   - `tone_stack_spice.csv` — mismas 775 filas, **ngspice 47** sobre el mismo
     netlist (`scripts/spice/tone_stack_sweep.py`; netlist legible en
     `scripts/spice/b18n_tone_1967.cir`).
-- **Condiciones:** 25 combinaciones Bass/Treble en 0/25/50/75/100 %,
+  - `tone_stack_coupled_spice.csv` — 775 filas del **circuito acoplado**
+    (B18-003): fuente AC de 1 V detrás de 100 kΩ, capacitor de acoplo de
+    0.022 µF y la misma red con carga de 270 kΩ; `H = v(out)/v(src)`
+    (`scripts/spice/tone_stack_coupled_sweep.py`, netlist legible en
+    `scripts/spice/b18n_tone_coupled_1967.cir`).
+- **Condiciones (aislado):** 25 combinaciones Bass/Treble en 0/25/50/75/100 %,
   rejilla ISO de tercios de octava de 20 Hz a 20 kHz, fuente Norton de 1 A con
   100 kΩ a masa, carga 270 kΩ (resistor de mezcla).
 - **Columnas:** `bass,treble,freq_hz,mag_db,phase_deg`.
 - **Uso:** los tests `crates/b18n-dsp/tests/tone_stack_response.rs` exigen
-  coincidencia de 1e-6 dB y 1e-4° contra numpy y contra SPICE.
-- **Regenerar:** `python scripts/tone_stack_reference.py` y
-  `python scripts/spice/tone_stack_sweep.py`.
+  coincidencia de 1e-6 dB y 1e-4° contra numpy y contra SPICE (aislado), y
+  1e-6 dB / 1e-4° contra el golden acoplado usando
+  `ToneStackDesign::frequency_response_with_input_coupling`.
+- **Regenerar:** `python scripts/tone_stack_reference.py`,
+  `python scripts/spice/tone_stack_sweep.py` y
+  `python scripts/spice/tone_stack_coupled_sweep.py`.
 
 ## Alcance de esta referencia
 

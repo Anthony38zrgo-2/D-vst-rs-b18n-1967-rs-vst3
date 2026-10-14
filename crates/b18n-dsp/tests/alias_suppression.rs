@@ -4,17 +4,15 @@
 //! Con 5 × 7.3 kHz = 36.5 kHz, el alias de primer orden cae en
 //! 48 − 36.5 = 11.5 kHz, lejos de los armónicos audibles (14.6, 21.9 kHz).
 //!
-//! Tras B18-002 (polo de NFB a tasa efectiva + TPT) la comparación relativa
-//! 1×/4× se re-basó: el criterio anterior («4× mejora ≥5 dB») era un artefacto
-//! del polo dependiente del sobremuestreo (efectivo ≈10 kHz a 4× frente a
-//! 2,5 kHz a 1×). Con el polo unificado a 2,5 kHz, medido a 4 V: 1× mejora de
-//! −27,5 a −31,7 dBc, pero 4× pasa de −41,2 a −25,1 dBc (el polo de 10 kHz
-//! efectivo daba más realimentación de HF, inconsistente con 1×). El alias de
-//! 4× está dominado por intermodulación **en banda** entre las imágenes del
+//! Tras B18-002 la comparación relativa 1×/4× se re-basó: el criterio anterior
+//! («4× mejora ≥5 dB») era un artefacto del polo de NFB dependiente del
+//! sobremuestreo. B18-003 recalibró además la excitación de 4 V a 2 V (el
+//! acoplo integrado en el MNA del tono elimina ~6 dB de atenuación doble, así
+//! que el drive interno es equivalente). Medido a 2 V: 1× −32,3 dBc y 4×
+//! −28,7 dBc, ambos bajo la cota absoluta ≤ −18 dBc. El alias de 4× está
+//! dominado por intermodulación **en banda** entre las imágenes del
 //! interpolador y los armónicos del pentodo (no removible por decimación); la
-//! pérdida de margen a 4× queda registrada para B18-018 (mejora de
-//! interpolador/decimación). Se conserva la cota absoluta ≤ −18 dBc en ambos
-//! factores. Véase `docs/MODEL_ASSUMPTIONS.md`.
+//! pérdida de margen frente al modelo anterior queda registrada para B18-018.
 
 use b18n_dsp::{B18nEngine, ProcessSpec};
 
@@ -22,9 +20,14 @@ const SAMPLE_RATE_HZ: f64 = 48_000.0;
 const INPUT_HZ: f64 = 7_300.0;
 const ALIAS_HZ: f64 = 11_500.0;
 const FRAMES: usize = 32_768;
-/// Amplitud de excitación: régimen de drive muy fuerte (4 V), donde el
-/// plegado del 5.º armónico en 1× domina y el suelo de alias es medible.
-const AMPLITUDE: f32 = 4.0;
+/// Amplitud de excitación: régimen de drive muy fuerte, donde el plegado del
+/// 5.º armónico en 1× domina y el suelo de alias es medible. El valor se
+/// recalibró de 4 V a **2 V** en B18-003: al integrar el acoplo de 0,022 µF en
+/// el MNA del tono desaparece el doble atenuador (~6 dB), así que 2 V de
+/// entrada producen el mismo drive interno que los 4 V anteriores (a ≥2,5 V el
+/// Newton del inversor 7199 congela samples con esta excitación de 7,3 kHz;
+/// véase B18-008).
+const AMPLITUDE: f32 = 2.0;
 
 fn render(oversampling: u8, amplitude: f32) -> Vec<f32> {
     let circuit = b18n_config::load_reference().expect("JSON + calibración");
@@ -88,8 +91,15 @@ fn alias_floor_is_bounded_at_one_and_four_times() {
     let (alias_1x, fundamental_1x, floor_1x) = alias_floor_dbc(1);
     let (alias_4x, fundamental_4x, floor_4x) = alias_floor_dbc(4);
 
+    if std::env::var_os("B18N_ALIAS_REPORT").is_some() {
+        println!(
+            "alias {:.1} V: 1× {floor_1x:.1} dBc (alias {alias_1x:.3e}, fund {fundamental_1x:.3e}); \
+             4× {floor_4x:.1} dBc (alias {alias_4x:.3e}, fund {fundamental_4x:.3e})",
+            AMPLITUDE
+        );
+    }
+
     // Cota absoluta documentada (la misma que el Hito C): alias ≤ −18 dBc.
-    // Medido tras B18-002: 1× −31,7 dBc; 4× −25,1 dBc.
     assert!(
         floor_1x < -18.0,
         "alias 1× demasiado alto: {floor_1x:.1} dBc (fundamental {fundamental_1x:.3e}, alias {alias_1x:.3e})"

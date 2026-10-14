@@ -61,6 +61,7 @@ si ngspice reporta errores.
 | Archivo | Propósito | Estado |
 |---|---|---|
 | `b18n_tone_1967.cir` | Red de tono (referencia legible al 50 %); barrido completo con `tone_stack_sweep.py` | Verificado |
+| `b18n_tone_coupled_1967.cir` | Acoplo de placa (Ro + 0.022 µF) + red de tono + carga (B18-003); barrido con `tone_stack_coupled_sweep.py` | Verificado |
 | `b18n_7199_dc_1967.cir` | `R(pin3, masa)` de la 7199 con fuentes anuladas (apagado/contraste) | Verificado |
 | `b18n_7199_meter_loading.cir` | Reposo DC completo de V3 (Koren RCA) y carga del medidor 1/2/5/10 MΩ en pin 9 | Verificado |
 | `b18n_7199_nfb_dc_1967.cir` | Reposo DC con la NFB (22 kΩ de la toma de 16 Ω al cátodo del pentodo) | Verificado |
@@ -68,16 +69,18 @@ si ngspice reporta errores.
 | `b18n_7199_tran_1967.cir` | Transitorio 1 kHz/0.2 V del inversor (extremos en 15–20 ms) | Verificado |
 | `b18n_power_7027a_1967.cir` | Etapa 7027A / OT-471 (curvas originales si se obtienen) | Pendiente (P2) |
 
-Barrer el tone stack y regenerar el golden:
+Barrer el tone stack y regenerar los goldens:
 
 ```powershell
-python scripts/spice/tone_stack_sweep.py
+python scripts/spice/tone_stack_sweep.py          # red aislada (fixture histórico)
+python scripts/spice/tone_stack_coupled_sweep.py  # acoplo + red + carga (B18-003)
 ```
 
 Las salidas golden se guardan en `assets/fixtures/reference/<tema>/` con un
 README que documenta versión, condiciones y tolerancias:
 
 - `assets/fixtures/reference/tone_stack/tone_stack_spice.csv`
+- `assets/fixtures/reference/tone_stack/tone_stack_coupled_spice.csv`
 - `assets/fixtures/reference/phase_7199/b18n_7199_dc_1967_golden.txt`
 - `assets/fixtures/reference/phase_7199/b18n_7199_meter_loading_golden.txt`
 - `assets/fixtures/reference/phase_7199/b18n_7199_ac_1967_golden.csv`

@@ -1,0 +1,41 @@
+* B-18N/B-15ND 1967 - acoplo de placa + red de tono (B18-003)
+* Referencia legible de la topologia trazada; el barrido golden completo
+* (25 combinaciones x 31 frecuencias) lo genera tone_stack_coupled_sweep.py
+* con este mismo netlist y potenciometros variables.
+*
+* Topologia: placa del 6SL7#2 (fuente AC de 1 V) detras de su impedancia de
+* salida Ro = 100 kOhm, acoplo de 0.022 uF y red James/Baxandall con los
+* mismos nodos que b18n_tone_1967.cir:
+*   src -> rsrc -> source -> ccoup -> in -> 220k -> b ...
+*
+* H = v(out)/v(src) (fuente ideal sin cargar), igual que
+* ToneStackDesign::frequency_response_with_input_coupling. Rcarga = 270 kOhm.
+* Potes de 1 MOhm lineales al 50 %: r_bw = r_wc = r_t_out = r_out_t2 = 500 kOhm.
+*
+* El fixture de tono aislado b18n_tone_1967.cir se conserva sin cambios.
+* Procedencia de cada componente: docs/CIRCUIT_TRACEABILITY.md.
+
+vin src 0 ac 1
+rsrc src source 100k
+ccoup source in 0.022u
+
+rseries in b 220k
+ct1 in t1 0.00047u
+cb_top b w 0.001u
+cb_bot c w 0.01u
+rbw b w 500k
+rwc w c 500k
+rstop c 0 22k
+rcut w 0 270k
+rmid w t1 120k
+rt_out t1 out 500k
+rout_t2 out t2 500k
+ct2 t2 0 0.0047u
+rload out 0 270k
+
+.control
+ac dec 12 20 20k
+let h = v(out)/v(src)
+print mag(h) ph(h)
+.endc
+.end

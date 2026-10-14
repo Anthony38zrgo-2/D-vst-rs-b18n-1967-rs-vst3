@@ -57,6 +57,16 @@ Los PDF se conservan localmente y **no se redistribuyen** (excluidos de git).
   JSON no codifica conexiones y no se usó como topología.
   Recortes ampliados reproducibles con `scripts/extract_pdfs.py` + `PIL` (no versionados).
 
+  **B18-003 (2026-10-14):** el acoplo de **0.022 µF** de la placa del triodo 2 vive
+  **dentro del MNA del tono** (nodo `SOURCE` = placa AC detrás de su impedancia de
+  salida `Ro`; capacitor entre `SOURCE` e `IN`). El motor ya no aplica un paso alto con
+  pérdida de inserción **fuera** del procesador (el divisor y la resistencia de fuente
+  duplicaban la carga). Fixture nuevo con fuente + `Ro` + acoplo + red + carga:
+  `scripts/spice/b18n_tone_coupled_1967.cir` y
+  `assets/fixtures/reference/tone_stack/tone_stack_coupled_spice.csv` (contraste de
+  magnitud y fase a 1e-6 dB / 1e-4°). El fixture aislado de la red se conserva sin
+  cambios.
+
   Curvas calculadas (relativas a mandos al 50 %): graves **+8.3 / −16.1 dB @ 40 Hz**,
   agudos **+10.8 / −31.6 dB @ 5 kHz**. El recorte de agudos coincide con el publicado
   para la reedición 1966 (−30 dB); el resto difiere de las cifras de reedición y queda

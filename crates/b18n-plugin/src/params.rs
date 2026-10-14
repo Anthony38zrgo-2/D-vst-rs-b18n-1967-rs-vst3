@@ -180,11 +180,13 @@ fn trim(name: &str, default_db: f32) -> FloatParam {
 /// Margen por defecto del trim de salida (no histórico).
 ///
 /// Medición Ola 8: una instancia nueva (volumen/tone a 0,5, trims a este
-/// valor) con senos de graves a escala completa del host produce un pico de
-/// 5,57 V en la etapa y por eso rebasaba la escala digital del host
-/// (`daw_levels`). −16,5 dB deja el pico de esa instancia a ≈0,83 (−1,6
-/// dBFS); el usuario puede subir el trim si el material es más bajo.
-const OUTPUT_TRIM_DEFAULT_DB: f32 = -16.5;
+/// valor) con senos de graves a escala completa del host producía un pico de
+/// 5,57 V en la etapa y rebasaba la escala digital del host (`daw_levels`).
+/// El valor se recalibró en B18-003 (corrección del doble atenuador del tono,
+/// que sube la cadena ~3,4 dB a 110/220 Hz): con **−20,0 dB** el pico vuelve a
+/// ≈0,82 (−1,7 dBFS); el usuario puede subir el trim si el material es más
+/// bajo. Adaptación moderna de nivel, no una característica histórica.
+const OUTPUT_TRIM_DEFAULT_DB: f32 = -20.0;
 
 impl Default for B18nParams {
     fn default() -> Self {

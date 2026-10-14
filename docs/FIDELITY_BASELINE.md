@@ -174,3 +174,10 @@ resolverse antes de comparar respuestas: indica cambio de modelo o de errata.
   2×/4×). El render de la sección 4 es **byte-idéntico** (mismo SHA-256 de salida), por lo
   que los valores de este baseline siguen vigentes; test nuevo
   `crates/b18n-dsp/tests/control_smoothing.rs`. Detalle en `CHANGELOG.md`.
+- **B18-003 (2026-10-14, rama `fix/tone-coupling-mna`, cambio audible):** el acoplo de
+  0,022 µF del 6SL7#2 vive dentro del MNA del tono (nodo `SOURCE` + `Ro` + capacitor +
+  red), eliminando el doble divisor externo (~6 dB); golden SPICE acoplado
+  (`tone_stack_coupled_spice.csv`, 1e-6 dB / 1e-4°). Trim de salida por defecto del
+  plugin −16,5 → −20,0 dB para mantener la protección del host. `ALGORITHM_VERSION` →
+  `…-tone-mna-speaker-v1`; render E2E nuevo: pico 5,1420, RMS 1,5610, offset +0,0030.
+  Detalle en `CHANGELOG.md`.
