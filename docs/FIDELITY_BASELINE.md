@@ -169,3 +169,8 @@ resolverse antes de comparar respuestas: indica cambio de modelo o de errata.
   alias se re-basó a cota absoluta ≤ −18 dBc en 1× y 4× (medido −31,7/−25,1 dBc; la
   comparación relativa anterior era un artefacto del polo dependiente del OS). Detalle en
   `CHANGELOG.md`.
+- **B18-004 (2026-10-14, rama `fix/trim-smoothing`, sin cambio de sonido):** los trims de
+  entrada/salida pasan de `15 ms × oversampling` a **15 ms físicos** (antes 30/60 ms a
+  2×/4×). El render de la sección 4 es **byte-idéntico** (mismo SHA-256 de salida), por lo
+  que los valores de este baseline siguen vigentes; test nuevo
+  `crates/b18n-dsp/tests/control_smoothing.rs`. Detalle en `CHANGELOG.md`.

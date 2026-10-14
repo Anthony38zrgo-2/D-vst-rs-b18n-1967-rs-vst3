@@ -5,6 +5,22 @@ El versionado sigue SemVer una vez exista el primer bundle distribuible.
 
 ## [Unreleased]
 
+### Corregido — B18-004 (tiempo de suavizado de los trims, sin cambio de sonido en régimen)
+
+- **Trims de entrada/salida: 15 ms físicos en todos los factores.** El tiempo
+  nominal se multiplicaba por el factor de sobremuestreo aunque los suavizados
+  avanzan una vez por muestra de proceso, de modo que el escalón duraba
+  15/30/60 ms a 1×/2×/4×; los potenciómetros de `ChannelChain` ya usaban el
+  tiempo constante. No se modifica `ALGORITHM_VERSION`: la respuesta en régimen
+  permanente no cambia (render E2E idéntico) y solo se corrige el tiempo de
+  gesto.
+- **`crates/b18n-dsp/tests/control_smoothing.rs` (nuevo):** mide el cruce del
+  63,2 % del escalón de trim en la envolvente de salida en dB (15,75 ms
+  medidos a 1×/2×/4×; con el código anterior la misma medida da 31,25 ms a 2×
+  —≈61 ms a 4×, proporcional al factor—), verifica el contrato de
+  `SmoothedValue` a las tasas efectivas y que la primera sincronización y
+  `reset()` siguen haciendo `snap` sin rampa.
+
 ### Corregido — B18-002 (NFB a tasa efectiva + TPT, cambio audible)
 
 - **Polo de compensación de la NFB: construido con la tasa base → construido

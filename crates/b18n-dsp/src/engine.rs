@@ -59,7 +59,9 @@ use crate::utilities::smoothing::SmoothedValue;
 /// Cambio audible: `ALGORITHM_VERSION` actualizada.
 const FEEDBACK_COMPENSATION_CUTOFF_HZ: f64 = 2_500.0;
 
-/// Tiempo de suavizado de mandos (guía §6.4: 5–30 ms).
+/// Tiempo de suavizado de mandos (guía §6.4: 5–30 ms). Es un tiempo **físico**:
+/// los suavizados avanzan una vez por muestra de la tasa de proceso, por lo que
+/// no se multiplica por el factor de sobremuestreo (B18-004).
 const CONTROL_SMOOTHING_MS: f32 = 15.0;
 
 /// Serie de la red de entrada documentada (120 kΩ por jack).
@@ -339,7 +341,6 @@ struct LinearChain {
 impl LinearChain {
     fn new(circuit: &CircuitDefinition, spec: &ProcessSpec) -> Result<Self, EngineError> {
         let processing_rate = spec.sample_rate_hz * f64::from(spec.oversampling);
-        let smoothing_ms = CONTROL_SMOOTHING_MS * f32::from(spec.oversampling);
         let tone_design = ToneStackDesign::from_circuit(circuit)?;
 
         // Fugas de rejilla documentadas: CH1 = 5.6 MΩ, CH2 = 2.2 MΩ.
@@ -405,8 +406,12 @@ impl LinearChain {
             mixer,
             inverter,
             power,
-            input_trim_db: SmoothedValue::new(0.0, processing_rate as f32, smoothing_ms),
-            output_trim_db: SmoothedValue::new(0.0, processing_rate as f32, smoothing_ms),
+            // 15 ms **físicos** a cualquier factor: `next_value()` avanza una
+            // vez por muestra de proceso, de modo que escalar el tiempo por el
+            // sobremuestreo lo alargaba a 30/60 ms (B18-004). Mismo criterio
+            // que los suavizados de `ChannelChain`.
+            input_trim_db: SmoothedValue::new(0.0, processing_rate as f32, CONTROL_SMOOTHING_MS),
+            output_trim_db: SmoothedValue::new(0.0, processing_rate as f32, CONTROL_SMOOTHING_MS),
             input_gain: MappedControl::new(),
             output_gain: MappedControl::new(),
             channel: InputChannel::default(),

@@ -16,7 +16,10 @@ hardware de 1967.
   de nivel, no una característica del amplificador.
 - Los mandos de una instancia nueva **saltan directo** a sus objetivos (`snap` en la
   primera configuración y tras `reset`): sin rampa de suavizado a ganancia previa al
-  arranque.
+  arranque. El suavizado de gestos es de **15 ms físicos** en todas las tasas y factores
+  de sobremuestreo (B18-004: los trims multiplicaban el tiempo nominal por el factor de
+  sobremuestreo y daban 30/60 ms a 2×/4×; potenciómetros y trims comparten ya la misma
+  constante).
 - El plugin es un **efecto de audio**; su salida es line-level digital, no la salida de
   potencia de un amplificador conectado a un altavoz real.
 - Modo estéreo: dos instancias de motor independientes (una por canal). No se suma L+R por
