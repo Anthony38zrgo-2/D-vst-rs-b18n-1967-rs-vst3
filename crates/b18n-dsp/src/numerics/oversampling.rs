@@ -194,11 +194,19 @@ impl FourTimesState {
     }
 }
 
-/// Sobremuestreador configurable (1×, 4×).
+/// One 2x interpolation/decimation pair.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TwoTimesState {
+    up: HalfBandUpsampler2x,
+    down: HalfBandDownsampler2x,
+}
+
+/// Sobremuestreador configurable (1×, 2×, 4×).
 #[derive(Debug, Clone, PartialEq)]
 pub enum Oversampler {
     /// Sin sobremuestreo: pasa la muestra tal cual.
     None,
+    TwoTimes(Box<TwoTimesState>),
     /// 4× = dos etapas 2× en cascada en cada sentido.
     FourTimes(Box<FourTimesState>),
 }
@@ -209,6 +217,10 @@ impl Oversampler {
     pub fn new(factor: u8) -> Option<Self> {
         match factor {
             1 => Some(Self::None),
+            2 => Some(Self::TwoTimes(Box::new(TwoTimesState {
+                up: HalfBandUpsampler2x::new(),
+                down: HalfBandDownsampler2x::new(),
+            }))),
             4 => Some(Self::FourTimes(Box::new(FourTimesState {
                 up_first: HalfBandUpsampler2x::new(),
                 up_second: HalfBandUpsampler2x::new(),
@@ -224,6 +236,7 @@ impl Oversampler {
     pub fn factor(&self) -> u8 {
         match self {
             Self::None => 1,
+            Self::TwoTimes(_) => 2,
             Self::FourTimes { .. } => 4,
         }
     }
@@ -238,6 +251,7 @@ impl Oversampler {
         let per_stage = ((HALF_BAND_TAPS - 1) / 2) as f64;
         match self {
             Self::None => 0,
+            Self::TwoTimes(_) => per_stage as u32,
             Self::FourTimes(_) => {
                 (per_stage / 2.0 + per_stage / 4.0 + per_stage / 4.0 + per_stage / 2.0).round()
                     as u32
@@ -248,6 +262,10 @@ impl Oversampler {
     pub fn reset(&mut self) {
         match self {
             Self::None => {}
+            Self::TwoTimes(state) => {
+                state.up.reset();
+                state.down.reset();
+            }
             Self::FourTimes(state) => {
                 state.up_first.reset();
                 state.up_second.reset();
@@ -262,6 +280,10 @@ impl Oversampler {
     pub fn restore_from(&mut self, other: &Self) {
         match (self, other) {
             (Self::None, Self::None) => {}
+            (Self::TwoTimes(state), Self::TwoTimes(other)) => {
+                state.up.restore_from(&other.up);
+                state.down.restore_from(&other.down);
+            }
             (Self::FourTimes(state), Self::FourTimes(other_state)) => {
                 state.restore_from(other_state);
             }
@@ -277,6 +299,16 @@ impl Oversampler {
     {
         match self {
             Self::None => process_at_rate(input),
+            Self::TwoTimes(state) => {
+                let (a, b) = state.up.process(f64::from(input));
+                let a = process_at_rate(a as f32);
+                let b = process_at_rate(b as f32);
+                let _ = state.down.process(f64::from(a));
+                state
+                    .down
+                    .process(f64::from(b))
+                    .expect("second sample of pair") as f32
+            }
             Self::FourTimes(state) => {
                 let (mid_a, mid_b) = state.up_first.process(f64::from(input));
                 let (high_0, high_1) = state.up_second.process(mid_a);
@@ -315,6 +347,35 @@ mod tests {
     use super::*;
 
     #[test]
+    fn two_times_impulse_dc_reset_and_restore() {
+        let mut os = Oversampler::new(2).unwrap();
+        assert_eq!(os.factor(), 2);
+        let output: Vec<_> = (0..256)
+            .map(|i| os.process(if i == 0 { 1.0 } else { 0.0 }, |x| x))
+            .collect();
+        let peak = output
+            .iter()
+            .enumerate()
+            .max_by(|a, b| a.1.abs().total_cmp(&b.1.abs()))
+            .unwrap()
+            .0;
+        assert_eq!(peak, os.latency_samples() as usize);
+        for _ in 0..256 {
+            os.process(1.0, |x| x);
+        }
+        assert!((os.process(1.0, |x| x) - 1.0).abs() < 1e-3);
+        let mut restored = Oversampler::new(2).unwrap();
+        restored.restore_from(&os);
+        for i in 0..256 {
+            let x = (i as f32 * 0.17).sin();
+            assert_eq!(os.process(x, |x| x), restored.process(x, |x| x));
+        }
+        os.reset();
+        let fresh = Oversampler::new(2).unwrap();
+        assert_eq!(os, fresh);
+    }
+
+    #[test]
     fn upsampler_preserves_dc_in_both_phases() {
         let mut upsampler = HalfBandUpsampler2x::new();
         let mut last = (0.0, 0.0);
@@ -345,7 +406,7 @@ mod tests {
         // impulso (pico en 47) y correlación cruzada de bursts (47).
         assert_eq!(oversampler.latency_samples(), 47);
         assert_eq!(Oversampler::new(1).expect("1×").latency_samples(), 0);
-        assert!(Oversampler::new(2).is_none());
+        assert_eq!(Oversampler::new(2).unwrap().latency_samples(), 31);
     }
 
     #[test]

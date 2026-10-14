@@ -67,6 +67,11 @@ fn process_does_not_allocate() {
 
     processor.process(&mut slices, controls, 4, false);
     processor.process(&mut slices, controls, 1, false);
+    let mut speaker_controls = controls;
+    speaker_controls.speaker_profile = b18n_dsp::SpeakerProfile::Eighteen;
+    processor.process(&mut slices, speaker_controls, 2, false);
+    speaker_controls.speaker_profile = b18n_dsp::SpeakerProfile::Fifteen;
+    processor.process(&mut slices, speaker_controls, 2, true);
     processor.process(&mut slices, controls, 4, true);
     processor.reset();
 

@@ -69,7 +69,26 @@ impl KorenTriodeModel {
     /// `E1` no positiva da corriente cero (zona de corte).
     #[must_use]
     pub fn plate_current(&self, plate_v: f64, grid_cathode_v: f64) -> f64 {
-        self.plate_current_with_slopes(plate_v, grid_cathode_v).0
+        let vp = plate_v.max(0.0);
+        let root = (self.params.kvb + vp * vp).sqrt();
+        if root <= 0.0 || plate_v <= 0.0 {
+            return 0.0;
+        }
+        let inner =
+            self.params.kp * (1.0 / self.params.mu + (grid_cathode_v + self.params.vct) / root);
+        let softplus = if inner > 40.0 {
+            inner
+        } else if inner < -40.0 {
+            0.0
+        } else {
+            inner.exp().ln_1p()
+        };
+        let e1 = vp / self.params.kp * softplus;
+        if e1 <= 0.0 {
+            0.0
+        } else {
+            e1.powf(self.params.ex) / self.params.kg1
+        }
     }
 
     /// Corriente de placa y pendientes analíticas `(Ip, ∂Ip/∂Vp, ∂Ip/∂Vgk)`.
@@ -105,7 +124,7 @@ impl KorenTriodeModel {
 
         let denominator = self.params.kvb + vp * vp;
         let d_inner_dvp =
-            self.params.kp * (grid_cathode_v + self.params.vct) * (-vp / denominator.powf(1.5));
+            self.params.kp * (grid_cathode_v + self.params.vct) * (-vp / (denominator * root));
         let d_inner_dvgk = self.params.kp / root;
 
         let d_e1_dvp = softplus / self.params.kp + vp / self.params.kp * sigmoid * d_inner_dvp;
@@ -163,6 +182,24 @@ impl KorenTriodeModel {
     }
 }
 
+/// Prepared plate-current curve at fixed screen and grid voltages.
+#[derive(Clone, Copy)]
+pub(crate) struct PentodePlateCurve {
+    base: f64,
+    kvb: f64,
+}
+impl PentodePlateCurve {
+    pub(crate) fn current_with_slope(self, plate_v: f64) -> (f64, f64) {
+        if self.base == 0.0 {
+            return (0.0, 0.0);
+        }
+        let knee_argument = plate_v.max(0.0) / self.kvb;
+        let knee = knee_argument.atan();
+        let slope = self.base * (1.0 / self.kvb) / (1.0 + knee_argument * knee_argument);
+        (self.base * knee, slope)
+    }
+}
+
 /// Pentodo/beam tetrode Koren (corriente de placa y de pantalla).
 ///
 /// Sigue la forma publicada por Norman Koren:
@@ -200,8 +237,17 @@ impl KorenPentodeModel {
         screen_v: f64,
         grid_v: f64,
     ) -> (f64, f64) {
+        self.prepare_plate_curve(screen_v, grid_v)
+            .current_with_slope(plate_v)
+    }
+
+    /// Terms independent of plate voltage, reusable throughout Newton.
+    pub(crate) fn prepare_plate_curve(&self, screen_v: f64, grid_v: f64) -> PentodePlateCurve {
         if screen_v <= 1e-6 {
-            return (0.0, 0.0);
+            return PentodePlateCurve {
+                base: 0.0,
+                kvb: self.params.kvb,
+            };
         }
         let inner = self.params.kp * (1.0 / self.params.mu + (grid_v + self.params.vct) / screen_v);
         let softplus = if inner > 40.0 {
@@ -213,13 +259,38 @@ impl KorenPentodeModel {
         };
         let e1 = screen_v / self.params.kp * softplus;
         if e1 <= 0.0 {
-            return (0.0, 0.0);
+            return PentodePlateCurve {
+                base: 0.0,
+                kvb: self.params.kvb,
+            };
         }
         let base = 2.0 * e1.powf(self.params.ex) / self.params.kg1;
-        let knee_argument = plate_v.max(0.0) / self.params.kvb;
-        let knee = knee_argument.atan();
-        let slope = base * (1.0 / self.params.kvb) / (1.0 + knee_argument * knee_argument);
-        (base * knee, slope)
+        PentodePlateCurve {
+            base,
+            kvb: self.params.kvb,
+        }
+    }
+
+    /// Plate-only evaluation matching currents_with_slopes' cathode-referred
+    /// convention; avoids screen-current and derivative work in bisection.
+    pub(crate) fn plate_current_cathode(&self, plate_v: f64, screen_v: f64, grid_v: f64) -> f64 {
+        if screen_v <= 1e-6 {
+            return 0.0;
+        }
+        let inner = self.params.kp * (1.0 / self.params.mu + grid_v / screen_v);
+        let softplus = if inner > 40.0 {
+            inner
+        } else if inner < -40.0 {
+            0.0
+        } else {
+            inner.exp().ln_1p()
+        };
+        let e1 = screen_v / self.params.kp * softplus;
+        if e1 <= 0.0 {
+            return 0.0;
+        }
+        let weight = 2.0 * e1.powf(self.params.ex) / self.params.kg1;
+        weight * (plate_v.max(0.0) / self.params.kvb).atan()
     }
 
     /// Corriente de placa (A).
@@ -317,6 +388,20 @@ impl KorenPentodeModel {
         }
     }
 
+    /// Value-only grid current for scalar residual checks and bisection.
+    pub(crate) fn grid_current(&self, grid_v: f64) -> f64 {
+        const SOFTNESS_V: f64 = 0.08;
+        let resistance = self.params.grid_conduction_resistance_ohms.max(1.0);
+        let shifted = (grid_v - self.params.grid_conduction_threshold_v) / SOFTNESS_V;
+        if shifted > 40.0 {
+            (grid_v - self.params.grid_conduction_threshold_v) / resistance
+        } else if shifted < -40.0 {
+            0.0
+        } else {
+            SOFTNESS_V * (1.0 + shifted.exp()).ln() / resistance
+        }
+    }
+
     /// Corriente de rejilla (A) y pendiente respecto de `Vgk` (misma
     /// aproximación suave que el triodo; parámetros de la calibración).
     #[must_use]
@@ -332,8 +417,9 @@ impl KorenPentodeModel {
         } else if shifted < -40.0 {
             (0.0, 0.0)
         } else {
-            let softplus = SOFTNESS_V * (1.0 + shifted.exp()).ln();
-            let sigmoid = 1.0 / (1.0 + (-shifted).exp());
+            let z = shifted.exp();
+            let softplus = SOFTNESS_V * (1.0 + z).ln();
+            let sigmoid = z / (1.0 + z);
             (softplus / resistance, sigmoid / resistance)
         }
     }
@@ -354,6 +440,19 @@ mod tests {
             grid_conduction_threshold_v: -0.3,
             grid_conduction_resistance_ohms: 1_000.0,
         })
+    }
+
+    #[test]
+    fn value_only_matches_analytic_evaluation() {
+        let model = model();
+        for plate in [-1.0, 0.0, 12.0, 175.0, 500.0] {
+            for grid in [-120.0, -4.0, -0.3, 0.0, 5.0] {
+                assert_eq!(
+                    model.plate_current(plate, grid),
+                    model.plate_current_with_slopes(plate, grid).0
+                );
+            }
+        }
     }
 
     #[test]
@@ -412,6 +511,64 @@ mod pentode_tests {
             grid_conduction_threshold_v: 0.0,
             grid_conduction_resistance_ohms: 500.0,
         })
+    }
+
+    #[test]
+    fn cathode_value_only_matches_analytic_evaluation() {
+        let model = model_6l6gc();
+        for grid in [-100.0, -3.21, -3.2, -0.5, 0.0, 0.5, 3.2, 3.21, 100.0] {
+            assert_eq!(
+                model.grid_current(grid),
+                model.grid_current_with_slope(grid).0
+            );
+        }
+        for plate in [-1.0, 0.0, 12.0, 175.0, 1000.0] {
+            for screen in [0.0, 60.0, 250.0, 500.0] {
+                for grid in [-120.0, -55.0, -4.0, 0.0, 5.0] {
+                    assert_eq!(
+                        model.plate_current_cathode(plate, screen, grid),
+                        model.currents_with_slopes(plate, screen, grid).plate_a
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn prepared_plate_curve_matches_original_equation_across_operating_range() {
+        let model = model_6l6gc();
+        let p = model.params();
+        for screen in [0.0, 60.0, 250.0, 500.0] {
+            for grid in [-120.0, -55.0, -18.0, 0.0, 2.0] {
+                let curve = model.prepare_plate_curve(screen, grid);
+                for plate in [-1.0_f64, 0.0, 12.0, 360.0, 1000.0] {
+                    let expected = if screen <= 1e-6 {
+                        (0.0, 0.0)
+                    } else {
+                        let inner = p.kp * (1.0 / p.mu + (grid + p.vct) / screen);
+                        let softplus = if inner > 40.0 {
+                            inner
+                        } else if inner < -40.0 {
+                            0.0
+                        } else {
+                            (1.0 + inner.exp()).ln()
+                        };
+                        let e1 = screen / p.kp * softplus;
+                        if e1 <= 0.0 {
+                            (0.0, 0.0)
+                        } else {
+                            let base = 2.0 * e1.powf(p.ex) / p.kg1;
+                            let knee = plate.max(0.0) / p.kvb;
+                            (
+                                base * knee.atan(),
+                                base * (1.0 / p.kvb) / (1.0 + knee * knee),
+                            )
+                        }
+                    };
+                    assert_eq!(curve.current_with_slope(plate), expected);
+                }
+            }
+        }
     }
 
     #[test]

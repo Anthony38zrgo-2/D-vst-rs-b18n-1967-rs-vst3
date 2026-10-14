@@ -21,6 +21,6 @@ pub use audio_context::ProcessSpec;
 pub use circuit::{
     CircuitDefinition, FidelityLevel, MissingValue, PotLaw, PotValues, TriodeStageValues,
 };
-pub use controls::{volume_fraction, InputChannel, RuntimeControls};
+pub use controls::{volume_fraction, InputChannel, RuntimeControls, SpeakerProfile};
 pub use engine::{B18nEngine, EngineError};
 pub use stages::tone_stack::{ToneStackControls, ToneStackDesign, ToneStackError};

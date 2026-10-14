@@ -170,3 +170,23 @@ los reportes por etapa. Un preset agradable no asciende de nivel por sí solo.
 - Control `Sag`: si se implementa, es extensión moderna, nunca mando original.
 - `cabinet_enabled` e IR externa: opcionales, identificados como tales.
 - Cualquier atajo de *clipping* de salida para protección es moderno y debe documentarse.
+
+## Speaker profiles and 2x (current iteration)
+
+The inactive-preamp suspension from optimization round 2 has been removed at the user's request. Both preamp channels always run; all other validated optimizations remain.
+
+Modern acoustic profiles are explicitly **estimated voicings**, not historical measurements. The nominal amplifier load remains 8 ohms in both modes; no Thiele-Small parameters, impedance curve, cabinet geometry or measured IR are inferred from diameter.
+
+| Selector | High-pass (2nd order) | Bass peak (Q 0.7071) | Low-pass (2nd order) |
+| --- | --- | --- | --- |
+| Direct (default) | None | None | None |
+| 18 inch (approx.) | 40 Hz | +2 dB at 80 Hz | 3200 Hz |
+| 15 inch (approx.) | 50 Hz | +2 dB at 110 Hz | 4200 Hz |
+
+High/low-pass Q is 0.7071. Cutoffs are limited to 45% of sample rate for low-rate stability. Filters run after the amplifier at the base sample rate and have no added buffering latency. Both profiles keep their histories warm; selection blends over a 15 ms exponential time constant. Direct remains the default so existing sessions retain their previous amp output until a speaker profile is selected. This does not imply a measured difference attributable solely to speaker diameter.
+
+Oversampling choices are 1x / 2x / 4x. The 2x path uses one 63-tap half-band interpolation/decimation pair; its measured impulse peak and reported latency are 31 base-rate samples (0.646 ms at 48 kHz). 1x remains 0; 4x remains 47 samples. All three stereo engines are allocated at initialization; factor changes and reset allocate nothing in the audio callback. 8x is rejected consistently rather than advertised by ProcessSpec.
+
+The oversampling enum is now ordered 1x, 2x, 4x. Stable preset IDs 1x and 4x are retained; their normalized endpoint values remain 0 and 1, while the new midpoint selects 2x. Raw numeric enum index for 4x changes from 1 to 2. The new speaker parameter ID is speaker, with direct / 18inch / 15inch variant IDs.
+
+Offline renderer: `--oversampling 2 --speaker 18` (or `15`, or `direct`). Speaker selection is included in the JSON report. Audible algorithm version is updated consistently in plugin and renderer.

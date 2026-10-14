@@ -8,3 +8,5 @@ pub mod power_7027a;
 pub mod tone_stack;
 pub mod triode_6sl7;
 pub mod tube_models;
+
+pub mod speaker;

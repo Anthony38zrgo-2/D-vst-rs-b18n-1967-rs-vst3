@@ -28,7 +28,7 @@ const VST3_CLASS_ID: [u8; 16] = *b"B18N1967VST3DSP!";
 /// Versión de algoritmo (debe coincidir con `b18n-render`).
 pub const ALGORITHM_VERSION: &str = concat!(
     env!("CARGO_PKG_VERSION"),
-    "-nonlinear-triodes-power-7199-inverter-nfb-25k-comp-4x"
+    "-nonlinear-triodes-power-7199-inverter-nfb-25k-comp-2x-speaker-v1"
 );
 
 /// Error de inicialización del plugin (fuera del hilo de audio).
@@ -93,7 +93,7 @@ impl B18nPlugin {
         let spec = b18n_dsp::ProcessSpec {
             sample_rate_hz: f64::from(buffer_config.sample_rate),
             max_block_frames: buffer_config.max_buffer_size.max(1) as usize,
-            // El adaptador construye 1× y 4×; este campo no selecciona factor.
+            // El adaptador construye 1×, 2× y 4×; este campo no selecciona factor.
             oversampling: 1,
         };
         let processor = B18nProcessor::new(&circuit, spec)?;

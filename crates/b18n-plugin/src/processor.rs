@@ -1,6 +1,6 @@
 //! Adaptador del motor para el host: estéreo = dos motores independientes.
 //!
-//! Los motores de ambos factores de sobremuestreo (1× y 4×) se construyen al
+//! Los motores de los tres factores de sobremuestreo (1×, 2× y 4×) se construyen al
 //! inicializar, de modo que `process()` nunca asigna memoria al cambiar de
 //! factor. El bypass del host usa una línea de retardo que compensa la latencia
 //! del camino procesado (FIR del sobremuestreador) con un crossfade corto.
@@ -20,8 +20,10 @@ pub const MAX_CHANNELS: usize = 2;
 /// Motor por canal con factores de sobremuestreo preconstruidos.
 pub struct B18nProcessor {
     engines_1x: [B18nEngine; MAX_CHANNELS],
+    engines_2x: [B18nEngine; MAX_CHANNELS],
     engines_4x: [B18nEngine; MAX_CHANNELS],
     latency_1x: u32,
+    latency_2x: u32,
     latency_4x: u32,
     dry_delay: [Vec<f32>; MAX_CHANNELS],
     dry_write: [usize; MAX_CHANNELS],
@@ -29,12 +31,16 @@ pub struct B18nProcessor {
 }
 
 impl B18nProcessor {
-    /// Construye los motores de 1× y 4× para los dos canales.
+    /// Construye los motores de 1×, 2× y 4× para los dos canales.
     ///
-    /// `spec.oversampling` se ignora: el adaptador construye ambos factores.
+    /// `spec.oversampling` se ignora: el adaptador construye los tres factores.
     pub fn new(circuit: &CircuitDefinition, spec: ProcessSpec) -> Result<Self, EngineError> {
         let base = ProcessSpec {
             oversampling: 1,
+            ..spec
+        };
+        let two = ProcessSpec {
+            oversampling: 2,
             ..spec
         };
         let four = ProcessSpec {
@@ -45,11 +51,16 @@ impl B18nProcessor {
             B18nEngine::new(circuit.clone(), base)?,
             B18nEngine::new(circuit.clone(), base)?,
         ];
+        let engines_2x = [
+            B18nEngine::new(circuit.clone(), two)?,
+            B18nEngine::new(circuit.clone(), two)?,
+        ];
         let engines_4x = [
             B18nEngine::new(circuit.clone(), four)?,
             B18nEngine::new(circuit.clone(), four)?,
         ];
         let latency_1x = engines_1x[0].latency_samples();
+        let latency_2x = engines_2x[0].latency_samples();
         let latency_4x = engines_4x[0].latency_samples();
         assert!(
             latency_4x as usize <= MAX_LATENCY_SAMPLES,
@@ -59,8 +70,10 @@ impl B18nProcessor {
         let rate = spec.sample_rate_hz as f32;
         Ok(Self {
             engines_1x,
+            engines_2x,
             engines_4x,
             latency_1x,
+            latency_2x,
             latency_4x,
             dry_delay: [
                 vec![0.0; MAX_LATENCY_SAMPLES],
@@ -79,6 +92,8 @@ impl B18nProcessor {
     pub fn latency_samples(&self, oversampling: u8) -> u32 {
         if oversampling >= 4 {
             self.latency_4x
+        } else if oversampling == 2 {
+            self.latency_2x
         } else {
             self.latency_1x
         }
@@ -90,6 +105,8 @@ impl B18nProcessor {
     pub fn convergence_failures(&self, oversampling: u8) -> u64 {
         if oversampling >= 4 {
             self.engines_4x[0].convergence_failures() + self.engines_4x[1].convergence_failures()
+        } else if oversampling == 2 {
+            self.engines_2x[0].convergence_failures() + self.engines_2x[1].convergence_failures()
         } else {
             self.engines_1x[0].convergence_failures() + self.engines_1x[1].convergence_failures()
         }
@@ -97,7 +114,7 @@ impl B18nProcessor {
 
     /// Procesa in-place hasta dos canales. Sin asignaciones ni locks.
     ///
-    /// Los objetivos de los mandos se aplican a ambos factores para que el
+    /// Los objetivos de los mandos se aplican a los tres factores para que el
     /// cambio de sobremuestreo no arrastre un estado de suavizado obsoleto.
     pub fn process(
         &mut self,
@@ -112,9 +129,12 @@ impl B18nProcessor {
 
         for (index, channel) in channels.iter_mut().enumerate().take(MAX_CHANNELS) {
             self.engines_1x[index].set_controls(controls);
+            self.engines_2x[index].set_controls(controls);
             self.engines_4x[index].set_controls(controls);
             let engine = if four {
                 &mut self.engines_4x[index]
+            } else if oversampling == 2 {
+                &mut self.engines_2x[index]
             } else {
                 &mut self.engines_1x[index]
             };
@@ -148,7 +168,12 @@ impl B18nProcessor {
 
     /// Restablece motores, retardo y suavizados (apto para el hilo de audio).
     pub fn reset(&mut self) {
-        for engine in self.engines_1x.iter_mut().chain(self.engines_4x.iter_mut()) {
+        for engine in self
+            .engines_1x
+            .iter_mut()
+            .chain(self.engines_2x.iter_mut())
+            .chain(self.engines_4x.iter_mut())
+        {
             engine.reset();
         }
         for delay in &mut self.dry_delay {

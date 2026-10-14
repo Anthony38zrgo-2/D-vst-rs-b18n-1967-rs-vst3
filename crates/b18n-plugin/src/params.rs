@@ -7,7 +7,7 @@
 
 use std::sync::Mutex;
 
-use b18n_dsp::{InputChannel, RuntimeControls};
+use b18n_dsp::{InputChannel, RuntimeControls, SpeakerProfile};
 use nih_plug::prelude::*;
 
 /// Entrada histórica seleccionada según los conectores del esquema.
@@ -32,7 +32,7 @@ impl From<ChannelParam> for InputChannel {
     }
 }
 
-/// Factor de sobremuestreo implementado por el motor (1×/4×).
+/// Factor de sobremuestreo implementado por el motor (1×/2×/4×).
 ///
 /// 8× no se expone: `Oversampler` no lo implementa y no se inventa.
 #[derive(Enum, Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -40,6 +40,9 @@ pub enum OversamplingFactor {
     #[id = "1x"]
     #[name = "1x"]
     One,
+    #[id = "2x"]
+    #[name = "2x"]
+    Two,
     #[id = "4x"]
     #[name = "4x"]
     #[default]
@@ -51,7 +54,32 @@ impl OversamplingFactor {
     pub fn factor(self) -> u8 {
         match self {
             Self::One => 1,
+            Self::Two => 2,
             Self::Four => 4,
+        }
+    }
+}
+
+/// Approximate cabinet voicings; Direct preserves the original amp output.
+#[derive(Enum, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SpeakerParam {
+    #[id = "direct"]
+    #[name = "Direct"]
+    #[default]
+    Direct,
+    #[id = "18inch"]
+    #[name = "18 inch (approx.)"]
+    Eighteen,
+    #[id = "15inch"]
+    #[name = "15 inch (approx.)"]
+    Fifteen,
+}
+impl From<SpeakerParam> for SpeakerProfile {
+    fn from(value: SpeakerParam) -> Self {
+        match value {
+            SpeakerParam::Direct => Self::Direct,
+            SpeakerParam::Eighteen => Self::Eighteen,
+            SpeakerParam::Fifteen => Self::Fifteen,
         }
     }
 }
@@ -78,6 +106,9 @@ pub struct B18nParams {
     /// Conector de entrada (Bass/Guitar comparten el canal 1; Instrument el 2).
     #[id = "channel"]
     pub channel: EnumParam<ChannelParam>,
+
+    #[id = "speaker"]
+    pub speaker: EnumParam<SpeakerParam>,
 
     /// Adaptación moderna DAW↔voltios (no histórica).
     #[id = "input_trim"]
@@ -159,6 +190,7 @@ impl Default for B18nParams {
     fn default() -> Self {
         Self {
             channel: EnumParam::new("Channel", ChannelParam::default()),
+            speaker: EnumParam::new("Speaker", SpeakerParam::default()),
             input_trim_db: trim("Input Trim", 0.0),
             volume_1: position("Volume 1", 0.5),
             bass_1: position("Bass 1", 0.5),
@@ -195,8 +227,9 @@ impl B18nParams {
             bass_2: self.bass_2.value(),
             treble_2: self.treble_2.value(),
             output_trim_db: self.output_trim_db.value(),
-            // El gabinete reactivo/IR es P2: no se expone ni se simula.
+            // No measured IR or reactive load; acoustic profiles are separate.
             cabinet_enabled: false,
+            speaker_profile: self.speaker.value().into(),
         }
     }
 
@@ -231,6 +264,7 @@ mod tests {
             "input_trim",
             "output_trim",
             "oversampling",
+            "speaker",
             "treble_1",
             "treble_2",
             "volume_1",
@@ -240,7 +274,7 @@ mod tests {
         .map(str::to_owned)
         .collect();
         assert_eq!(ids, expected, "los IDs de automatización son un contrato");
-        assert_eq!(map.len(), 11, "sin IDs duplicados");
+        assert_eq!(map.len(), 12, "sin IDs duplicados");
     }
 
     #[test]
@@ -261,8 +295,8 @@ mod tests {
     #[test]
     fn oversampling_ids_are_stable() {
         assert_eq!(OversamplingFactor::One.to_index(), 0);
-        assert_eq!(OversamplingFactor::Four.to_index(), 1);
-        assert_eq!(OversamplingFactor::ids(), Some(&["1x", "4x"][..]));
+        assert_eq!(OversamplingFactor::Four.to_index(), 2);
+        assert_eq!(OversamplingFactor::ids(), Some(&["1x", "2x", "4x"][..]));
         assert_eq!(
             ChannelParam::ids(),
             Some(&["bass", "guitar", "instrument"][..])

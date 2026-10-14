@@ -66,6 +66,7 @@ fn reported_latency_matches_the_impulse_peak() {
     let spec = common::spec(48_000.0, 4096);
     let processor = B18nProcessor::new(&circuit, spec).expect("procesador");
     assert_eq!(processor.latency_samples(1), 0);
+    assert_eq!(processor.latency_samples(2), 31);
     assert_eq!(processor.latency_samples(4), 47);
 
     // Instancia stock (mandos por defecto): el pico de la respuesta
@@ -80,7 +81,7 @@ fn reported_latency_matches_the_impulse_peak() {
     // El adaptador no añade retardo respecto del motor directo, con mandos
     // por defecto y con el drive moderno (`common::controls`).
     let controls = common::controls();
-    for oversampling in [1, 4] {
+    for oversampling in [1, 2, 4] {
         assert_eq!(
             peak_index(&impulse_adapter_response(oversampling, controls)),
             peak_index(&impulse_direct_response(oversampling, controls)),
@@ -95,6 +96,7 @@ fn latency_does_not_depend_on_sample_rate() {
     for rate in [44_100.0, 48_000.0, 88_200.0, 96_000.0, 192_000.0] {
         let spec = common::spec(rate, 512);
         let processor = B18nProcessor::new(&circuit, spec).expect("procesador");
+        assert_eq!(processor.latency_samples(2), 31);
         assert_eq!(processor.latency_samples(4), 47, "tasa {rate} Hz");
     }
 }

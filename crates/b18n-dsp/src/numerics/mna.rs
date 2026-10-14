@@ -117,6 +117,8 @@ pub struct RealMna {
     rhs: Vec<f64>,
     scratch_matrix: Vec<f64>,
     scratch_rhs: Vec<f64>,
+    pivots: Vec<usize>,
+    factorized: bool,
 }
 
 impl RealMna {
@@ -129,6 +131,8 @@ impl RealMna {
             rhs: vec![0.0; size],
             scratch_matrix: vec![0.0; size * size],
             scratch_rhs: vec![0.0; size],
+            pivots: vec![0; size],
+            factorized: false,
         }
     }
 
@@ -139,7 +143,13 @@ impl RealMna {
 
     /// Prepara el sistema para un nuevo estampado.
     pub fn clear(&mut self) {
+        self.factorized = false;
         self.matrix.fill(0.0);
+        self.rhs.fill(0.0);
+    }
+
+    /// Conserva la matriz y su factorización para una nueva entrada.
+    pub fn clear_rhs(&mut self) {
         self.rhs.fill(0.0);
     }
 
@@ -152,10 +162,13 @@ impl RealMna {
         self.rhs.clone_from(&other.rhs);
         self.scratch_matrix.clone_from(&other.scratch_matrix);
         self.scratch_rhs.clone_from(&other.scratch_rhs);
+        self.pivots.clone_from(&other.pivots);
+        self.factorized = other.factorized;
     }
 
     /// Estampa una conductancia entre dos nodos (`0` = masa).
     pub fn add_conductance(&mut self, node_a: usize, node_b: usize, g: f64) {
+        self.factorized = false;
         let index = |node: usize| node - 1;
         if node_a != 0 {
             self.matrix[index(node_a) * self.size + index(node_a)] += g;
@@ -183,36 +196,49 @@ impl RealMna {
         if out.len() < n + 1 {
             return false;
         }
-        self.scratch_matrix.copy_from_slice(&self.matrix);
-        self.scratch_rhs.copy_from_slice(&self.rhs);
+        if !self.factorized {
+            self.scratch_matrix.copy_from_slice(&self.matrix);
 
-        for col in 0..n {
-            let mut pivot = col;
-            let mut best = self.scratch_matrix[col * n + col].abs();
-            for row in (col + 1)..n {
-                let candidate = self.scratch_matrix[row * n + col].abs();
-                if candidate > best {
-                    best = candidate;
-                    pivot = row;
-                }
-            }
-            if best < 1e-18 {
-                return false;
-            }
-            if pivot != col {
-                for k in col..n {
-                    self.scratch_matrix.swap(col * n + k, pivot * n + k);
-                }
-                self.scratch_rhs.swap(col, pivot);
-            }
-            let diag = self.scratch_matrix[col * n + col];
-            for row in (col + 1)..n {
-                let factor = self.scratch_matrix[row * n + col] / diag;
-                if factor != 0.0 {
-                    for k in col..n {
-                        self.scratch_matrix[row * n + k] -=
-                            factor * self.scratch_matrix[col * n + k];
+            for col in 0..n {
+                let mut pivot = col;
+                let mut best = self.scratch_matrix[col * n + col].abs();
+                for row in (col + 1)..n {
+                    let candidate = self.scratch_matrix[row * n + col].abs();
+                    if candidate > best {
+                        best = candidate;
+                        pivot = row;
                     }
+                }
+                if best < 1e-18 {
+                    return false;
+                }
+                if pivot != col {
+                    for k in col..n {
+                        self.scratch_matrix.swap(col * n + k, pivot * n + k);
+                    }
+                }
+                self.pivots[col] = pivot;
+                let diag = self.scratch_matrix[col * n + col];
+                for row in (col + 1)..n {
+                    let factor = self.scratch_matrix[row * n + col] / diag;
+                    if factor != 0.0 {
+                        for k in col..n {
+                            self.scratch_matrix[row * n + k] -=
+                                factor * self.scratch_matrix[col * n + k];
+                        }
+                    }
+                    // Store elimination operations in execution order, below U.
+                    self.scratch_matrix[row * n + col] = factor;
+                }
+            }
+            self.factorized = true;
+        }
+        self.scratch_rhs.copy_from_slice(&self.rhs);
+        for col in 0..n {
+            self.scratch_rhs.swap(col, self.pivots[col]);
+            for row in (col + 1)..n {
+                let factor = self.scratch_matrix[row * n + col];
+                if factor != 0.0 {
                     self.scratch_rhs[row] -= factor * self.scratch_rhs[col];
                 }
             }
@@ -335,6 +361,45 @@ impl ComplexMna {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cached_elimination_handles_pivots_rhs_changes_and_invalidation() {
+        let mut mna = RealMna::new(3);
+        // Multiple pivot swaps; compare against a known solution, not another solver.
+        let matrix = [0.0, 2.0, 1.0, 1.0, 0.0, 3.0, 4.0, 1.0, 0.0];
+        mna.matrix.copy_from_slice(&matrix);
+        for expected in [[1.0, -2.0, 3.0], [-4.0, 0.25, 2.0]] {
+            mna.clear_rhs();
+            for row in 0..3 {
+                let rhs = (0..3)
+                    .map(|col| matrix[row * 3 + col] * expected[col])
+                    .sum();
+                mna.add_current_injection(row + 1, rhs);
+            }
+            let mut out = [0.0; 4];
+            assert!(mna.solve_into(&mut out));
+            assert!(mna.factorized);
+            for i in 0..3 {
+                assert!((out[i + 1] - expected[i]).abs() < 1e-12);
+            }
+        }
+        mna.add_conductance(1, 0, 2.0);
+        assert!(!mna.factorized);
+        mna.clear_rhs();
+        for (i, rhs) in [9.0, 10.0, 6.0].into_iter().enumerate() {
+            mna.add_current_injection(i + 1, rhs);
+        }
+        let mut out = [0.0; 4];
+        assert!(mna.solve_into(&mut out));
+        for (got, expected) in out[1..].iter().zip([1.0, 2.0, 3.0]) {
+            assert!((got - expected).abs() < 1e-12);
+        }
+        let mut restored = RealMna::new(3);
+        restored.restore_from(&mna);
+        assert!(restored.solve_into(&mut out));
+        mna.clear();
+        assert!(!mna.solve_into(&mut out));
+    }
 
     #[test]
     fn resistor_divider_matches_analytic() {

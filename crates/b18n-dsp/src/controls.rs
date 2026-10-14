@@ -13,6 +13,15 @@ pub enum InputChannel {
     Instrument,
 }
 
+/// Modern approximate acoustic coloration, separate from the historical load.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SpeakerProfile {
+    #[default]
+    Direct,
+    Eighteen,
+    Fifteen,
+}
+
 /// Límites de los ajustes de nivel modernos (no históricos).
 pub const TRIM_MIN_DB: f32 = -60.0;
 pub const TRIM_MAX_DB: f32 = 24.0;
@@ -39,6 +48,7 @@ pub struct RuntimeControls {
     pub output_trim_db: f32,
     /// IR de gabinete opcional (moderna).
     pub cabinet_enabled: bool,
+    pub speaker_profile: SpeakerProfile,
 }
 
 impl Default for RuntimeControls {
@@ -54,6 +64,7 @@ impl Default for RuntimeControls {
             treble_2: 0.5,
             output_trim_db: 0.0,
             cabinet_enabled: false,
+            speaker_profile: SpeakerProfile::Direct,
         }
     }
 }
@@ -92,6 +103,7 @@ impl RuntimeControls {
             treble_2: clamp_position(self.treble_2),
             output_trim_db: clamp_trim(self.output_trim_db),
             cabinet_enabled: self.cabinet_enabled,
+            speaker_profile: self.speaker_profile,
         }
     }
 }

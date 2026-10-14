@@ -8,7 +8,7 @@ pub struct ProcessSpec {
     pub sample_rate_hz: f64,
     /// Máximo de frames por bloque que el host puede entregar.
     pub max_block_frames: usize,
-    /// Factor de sobremuestreo implementado: 1, 4 u 8.
+    /// Factor de sobremuestreo implementado: 1, 2 o 4.
     pub oversampling: u8,
 }
 
@@ -17,7 +17,7 @@ impl ProcessSpec {
     pub const PREFERRED_SAMPLE_RATES_HZ: [f64; 5] =
         [44_100.0, 48_000.0, 88_200.0, 96_000.0, 192_000.0];
 
-    pub const SUPPORTED_OVERSAMPLING: [u8; 3] = [1, 4, 8];
+    pub const SUPPORTED_OVERSAMPLING: [u8; 3] = [1, 2, 4];
 
     /// Valida los valores sin imponer topes no documentados.
     pub fn validate(&self) -> Result<(), EngineError> {
@@ -86,11 +86,11 @@ mod tests {
         let bad_oversampling = ProcessSpec {
             sample_rate_hz: 48_000.0,
             max_block_frames: 512,
-            oversampling: 2,
+            oversampling: 3,
         };
         assert!(matches!(
             bad_oversampling.validate(),
-            Err(EngineError::UnsupportedOversampling { factor: 2 })
+            Err(EngineError::UnsupportedOversampling { factor: 3 })
         ));
     }
 }

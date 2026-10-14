@@ -20,6 +20,7 @@ use crate::stages::channel_mixer::ChannelMixer;
 use crate::stages::input::InputStage;
 use crate::stages::phase_splitter::{PhaseInverter7199, PhaseInverterOperatingPoint};
 use crate::stages::power_7027a::{PowerStageConfig, PushPullStage};
+use crate::stages::speaker::SpeakerCabinet;
 use crate::stages::tone_stack::{
     ToneStackControls, ToneStackDesign, ToneStackError, ToneStackProcessor,
 };
@@ -129,6 +130,7 @@ pub struct B18nEngine {
     settled_chain: LinearChain,
     oversampler: Oversampler,
     settled_oversampler: Oversampler,
+    speaker: SpeakerCabinet,
 }
 
 impl B18nEngine {
@@ -159,6 +161,7 @@ impl B18nEngine {
             settled_chain,
             oversampler,
             settled_oversampler,
+            speaker: SpeakerCabinet::new(spec.sample_rate_hz),
         })
     }
 
@@ -171,10 +174,12 @@ impl B18nEngine {
     /// instancia por defecto).
     pub fn set_controls(&mut self, controls: RuntimeControls) {
         self.controls = controls.sanitized();
+        self.speaker.set_profile(self.controls.speaker_profile);
         self.chain.set_targets(&self.controls);
         if !self.controls_synchronized {
             self.controls_synchronized = true;
             sync_chain_smoothing(&mut self.chain);
+            self.speaker.snap();
         }
     }
 
@@ -188,9 +193,12 @@ impl B18nEngine {
         self.chain.restore_from(&self.settled_chain);
         self.oversampler.restore_from(&self.settled_oversampler);
         self.state.reset();
+        self.speaker.reset();
         if self.controls_synchronized {
             self.chain.set_targets(&self.controls);
             sync_chain_smoothing(&mut self.chain);
+            self.speaker.set_profile(self.controls.speaker_profile);
+            self.speaker.snap();
         }
     }
 
@@ -256,7 +264,8 @@ impl B18nEngine {
     pub fn process_sample(&mut self, sample: f32) -> f32 {
         let chain = &mut self.chain;
         let oversampler = &mut self.oversampler;
-        oversampler.process(sample, |value| chain.process_sample(value))
+        let output = oversampler.process(sample, |value| chain.process_sample(value));
+        self.speaker.process(output)
     }
 }
 
@@ -270,6 +279,28 @@ fn sync_chain_smoothing(chain: &mut LinearChain) {
     chain.channel_2.snap_smoothing();
 }
 
+/// Cache a control mapping without changing its smoothing trajectory.
+#[derive(Clone, Copy)]
+struct MappedControl {
+    position: f32,
+    value: f64,
+}
+impl MappedControl {
+    fn new() -> Self {
+        Self {
+            position: f32::NAN,
+            value: 0.0,
+        }
+    }
+    fn get(&mut self, position: f32, map: impl FnOnce(f32) -> f64) -> f64 {
+        if self.position != position {
+            self.position = position;
+            self.value = map(position);
+        }
+        self.value
+    }
+}
+
 /// Cadena lineal/no lineal completa con un previo por canal.
 #[derive(Clone)]
 struct LinearChain {
@@ -281,6 +312,8 @@ struct LinearChain {
     power: PushPullStage,
     input_trim_db: SmoothedValue,
     output_trim_db: SmoothedValue,
+    input_gain: MappedControl,
+    output_gain: MappedControl,
     channel: InputChannel,
     /// Realimentación negativa (separación explícita `z^-1`, aproximación
     /// declarada): la muestra de la toma de 16 Ω se usa en el sample siguiente.
@@ -362,6 +395,8 @@ impl LinearChain {
             power,
             input_trim_db: SmoothedValue::new(0.0, processing_rate as f32, smoothing_ms),
             output_trim_db: SmoothedValue::new(0.0, processing_rate as f32, smoothing_ms),
+            input_gain: MappedControl::new(),
+            output_gain: MappedControl::new(),
             channel: InputChannel::default(),
             feedback_enabled,
             feedback_tap_gain,
@@ -416,6 +451,8 @@ impl LinearChain {
         self.power = other.power.clone();
         self.input_trim_db = other.input_trim_db;
         self.output_trim_db = other.output_trim_db;
+        self.input_gain = other.input_gain;
+        self.output_gain = other.output_gain;
         self.channel = other.channel;
         self.feedback_enabled = other.feedback_enabled;
         self.feedback_tap_gain = other.feedback_tap_gain;
@@ -425,7 +462,9 @@ impl LinearChain {
     }
 
     fn process_sample(&mut self, sample: f32) -> f32 {
-        let input_gain = f64::from(db_to_gain(self.input_trim_db.next_value()));
+        let input_gain = self.input_gain.get(self.input_trim_db.next_value(), |db| {
+            f64::from(db_to_gain(db))
+        });
         let volts = self.input.process_sample(sample) * input_gain;
 
         let (channel_1_input, channel_2_input) = match self.channel {
@@ -449,7 +488,11 @@ impl LinearChain {
         if self.feedback_enabled {
             self.feedback_state = secondary * self.feedback_tap_gain;
         }
-        let output_gain = f64::from(db_to_gain(self.output_trim_db.next_value()));
+        let output_gain = self
+            .output_gain
+            .get(self.output_trim_db.next_value(), |db| {
+                f64::from(db_to_gain(db))
+            });
         (secondary * output_gain) as f32
     }
 }
@@ -467,6 +510,7 @@ struct ChannelChain {
     volume: SmoothedValue,
     bass: SmoothedValue,
     treble: SmoothedValue,
+    volume_gain: MappedControl,
 }
 
 impl ChannelChain {
@@ -581,6 +625,7 @@ impl ChannelChain {
             volume: smoother(0.5),
             bass: smoother(0.5),
             treble: smoother(0.5),
+            volume_gain: MappedControl::new(),
         })
     }
 
@@ -639,18 +684,23 @@ impl ChannelChain {
         self.volume = other.volume;
         self.bass = other.bass;
         self.treble = other.treble;
+        self.volume_gain = other.volume_gain;
     }
 
     fn process(&mut self, input_volts: f64) -> f64 {
         let volume_position = self.volume.next_value();
+        let controls = [
+            volume_position,
+            self.bass.next_value(),
+            self.treble.next_value(),
+        ];
         self.tone.set_controls(ToneStackControls {
-            bass: self.bass.next_value(),
-            treble: self.treble.next_value(),
+            bass: controls[1],
+            treble: controls[2],
         });
-
         let plate_1 = self.triode_1.process(input_volts);
         let drive_1 = self.coupling_1.process(plate_1) * self.coupling_1_gain;
-        let divided = drive_1 * volume_fraction(volume_position);
+        let divided = drive_1 * self.volume_gain.get(volume_position, volume_fraction);
         let plate_2 = self.triode_2.process(divided);
         let tone_input = self.coupling_2.process(plate_2) * self.coupling_2_gain;
         self.tone.process_sample(tone_input)
@@ -678,6 +728,32 @@ mod tests {
         (0..frames)
             .map(|index| (index as f32 * 0.05).sin() * 0.3)
             .collect()
+    }
+
+    #[test]
+    fn mapped_controls_preserve_sample_by_sample_smoothing() {
+        let mut smooth = SmoothedValue::new(-16.5, 48000.0, 15.0);
+        let mut cache = MappedControl::new();
+        for i in 0..10000 {
+            if i % 2000 == 0 {
+                smooth.set_target(-30.0 + i as f32 * 0.004);
+            }
+            let position = smooth.next_value();
+            assert_eq!(
+                cache.get(position, |db| f64::from(db_to_gain(db))),
+                f64::from(db_to_gain(position))
+            );
+        }
+        let mut calls = 0;
+        cache.get(0.5, |p| {
+            calls += 1;
+            volume_fraction(p)
+        });
+        cache.get(0.5, |p| {
+            calls += 1;
+            volume_fraction(p)
+        });
+        assert_eq!(calls, 1);
     }
 
     #[test]

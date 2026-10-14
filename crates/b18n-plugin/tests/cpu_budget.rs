@@ -15,8 +15,8 @@ const RATE: f64 = 48_000.0;
 const BLOCK: usize = 512;
 const SECONDS: f64 = 1.0;
 
-/// Procesa estéreo a 4× durante `SECONDS` y devuelve ns por muestra de DAW.
-fn bench_stereo_4x() -> f64 {
+/// Procesa estéreo al factor pedido durante `SECONDS` y devuelve ns por muestra de DAW.
+fn bench_stereo(oversampling: u8) -> f64 {
     let circuit = common::circuit();
     let spec = common::spec(RATE, BLOCK);
     let controls = common::controls();
@@ -44,14 +44,14 @@ fn bench_stereo_4x() -> f64 {
 
     // Calentamiento (caches, estado inicial).
     let mut slices: Vec<&mut [f32]> = vec![&mut left, &mut right];
-    processor.process(&mut slices, controls, 4, false);
+    processor.process(&mut slices, controls, oversampling, false);
 
     let start = Instant::now();
     let mut processed = 0_usize;
     for block in 0..total_blocks {
         slices[0].copy_from_slice(&inputs[2 * block]);
         slices[1].copy_from_slice(&inputs[2 * block + 1]);
-        processor.process(&mut slices, controls, 4, false);
+        processor.process(&mut slices, controls, oversampling, false);
         processed += slices[0].len();
         assert!(slices[0][0].is_finite() && slices[1][0].is_finite());
     }
@@ -73,7 +73,7 @@ fn process_is_far_below_realtime_budget() {
     if cfg!(debug_assertions) {
         return; // solo con `cargo test --release`
     }
-    let per_sample_ns = bench_stereo_4x();
+    let per_sample_ns = bench_stereo(4);
     println!("CPU: {per_sample_ns:.0} ns/muestra (estéreo, 4×, 48 kHz)");
     assert!(
         per_sample_ns < 25_000.0,
@@ -86,6 +86,20 @@ fn process_is_far_below_realtime_budget() {
 #[test]
 #[ignore]
 fn bench_stereo_4x_print() {
-    let per_sample_ns = bench_stereo_4x();
+    let per_sample_ns = bench_stereo(4);
     println!("CPU: {per_sample_ns:.0} ns/muestra (estéreo, 4×, 48 kHz)");
+}
+
+#[test]
+#[ignore]
+fn bench_stereo_1x_print() {
+    let ns = bench_stereo(1);
+    println!("CPU: {ns:.0} ns/frame (stereo, 1x, 48 kHz)");
+}
+
+#[test]
+#[ignore]
+fn bench_stereo_2x_print() {
+    let ns = bench_stereo(2);
+    println!("CPU: {ns:.0} ns/frame (stereo, 2x, 48 kHz)");
 }

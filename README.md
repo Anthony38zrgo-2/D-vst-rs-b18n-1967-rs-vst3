@@ -21,9 +21,12 @@ con un núcleo DSP independiente del host y exportación posterior a VST3.
   impulso (el valor anterior, 93, duplicaba el retardo por etapa).
 - **P1.7 — plugin VST3:** `crates/b18n-plugin` (NIH-plug, GPL-3.0-only) con layouts
   2→2 y 1→1 (estéreo = dos motores), parámetros con IDs estables, presets con huellas
-  del modelo, bypass compensado en latencia y oversampling 1×/4× en panel avanzado.
+  del modelo, bypass compensado en latencia y oversampling 1×/2×/4× en panel avanzado.
   Bundle: `cargo xtask bundle b18n-plugin --release` → `target/bundled/B18N 67.vst3`.
   Quedan como pasos manuales el Steinberg Validator y la prueba en DAW.
+- **Speaker (aproximado):** selector Direct / 18 inch / 15 inch, con perfiles
+  acústicos IIR y transición suave. Direct conserva la salida del amplificador;
+  no son IR medidas ni cargas reactivas. Ambos previos procesan continuamente.
 - **P2 (pendiente):** fuente dinámica (5AR4/sag), OT no ideal, gabinete reactivo/IR.
 - Guía de hitos en [`docs/IMPLEMENTATION_GUIDE.md`](docs/IMPLEMENTATION_GUIDE.md).
 
@@ -72,6 +75,7 @@ cargo run -p b18n-render --release -- \
   --oversampling 4 \
   --channel bass \
   --cabinet off \
+  --speaker direct \
   --measure tone \
   --report target/reports/b18n_1967.json
 ```

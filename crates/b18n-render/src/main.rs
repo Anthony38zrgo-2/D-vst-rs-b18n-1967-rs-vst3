@@ -65,6 +65,32 @@ impl CabinetArg {
     }
 }
 
+/// Modern approximate acoustic profiles (no measured IR).
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum SpeakerArg {
+    Direct,
+    #[value(name = "18")]
+    Eighteen,
+    #[value(name = "15")]
+    Fifteen,
+}
+impl SpeakerArg {
+    fn profile(self) -> b18n_dsp::SpeakerProfile {
+        match self {
+            Self::Direct => b18n_dsp::SpeakerProfile::Direct,
+            Self::Eighteen => b18n_dsp::SpeakerProfile::Eighteen,
+            Self::Fifteen => b18n_dsp::SpeakerProfile::Fifteen,
+        }
+    }
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Direct => "direct",
+            Self::Eighteen => "18-approx",
+            Self::Fifteen => "15-approx",
+        }
+    }
+}
+
 /// Mediciones adicionales al procesado del WAV.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum MeasureArg {
@@ -88,7 +114,7 @@ struct Cli {
     /// Sample rate esperado; debe coincidir con el WAV (no hay remuestreo aún).
     #[arg(long)]
     sample_rate: Option<u32>,
-    /// Factor de sobremuestreo: 1, 4 u 8.
+    /// Factor de sobremuestreo: 1, 2 o 4.
     #[arg(long, default_value_t = 4)]
     oversampling: u8,
     /// Entrada histórica seleccionada.
@@ -97,6 +123,9 @@ struct Cli {
     /// IR de gabinete (moderna; Hito B: sin gabinete).
     #[arg(long, value_enum, default_value_t = CabinetArg::Off)]
     cabinet: CabinetArg,
+    /// Approximate speaker coloration: direct, 18 or 15.
+    #[arg(long, value_enum, default_value_t = SpeakerArg::Direct)]
+    speaker: SpeakerArg,
     /// Mediciones adicionales (p. ej. `tone`).
     #[arg(long, value_enum)]
     measure: Option<MeasureArg>,
@@ -158,6 +187,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn Error>> {
         let mut engine = B18nEngine::new(circuit.clone(), spec)?;
         let controls = RuntimeControls {
             channel: cli.channel.to_input_channel(),
+            speaker_profile: cli.speaker.profile(),
             cabinet_enabled: cli.cabinet == CabinetArg::On,
             ..RuntimeControls::default()
         };
@@ -207,6 +237,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn Error>> {
             channel: cli.channel.as_str(),
             oversampling: cli.oversampling,
             cabinet: cli.cabinet.as_str(),
+            speaker: cli.speaker.as_str(),
         },
         metrics: metrics(&output_channels),
         fidelity: circuit.fidelity.as_str().to_owned(),

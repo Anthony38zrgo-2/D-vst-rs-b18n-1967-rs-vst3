@@ -186,7 +186,7 @@ impl ToneStackDesign {
 /// Procesador en tiempo real de la red de tono (MNA + capacitores TPT).
 ///
 /// Sin asignaciones dentro de [`Self::process_sample`]; los valores de los
-/// potes se toman al inicio de cada bloque mediante [`Self::set_controls`].
+/// potes invalidan la factorización solo cuando cambian mediante [`Self::set_controls`].
 #[derive(Debug, Clone)]
 pub struct ToneStackProcessor {
     design: ToneStackDesign,
@@ -194,6 +194,7 @@ pub struct ToneStackProcessor {
     load_ohms: f64,
     controls: ToneStackControls,
     mna: RealMna,
+    matrix_dirty: bool,
     solution: [f64; NODES + 1],
     cap_treble_series: TptCapacitor,
     cap_bass_top: TptCapacitor,
@@ -217,6 +218,7 @@ impl ToneStackProcessor {
             load_ohms: load_ohms.max(1e-3),
             controls: ToneStackControls::default(),
             mna: RealMna::new(NODES),
+            matrix_dirty: true,
             solution: [0.0; NODES + 1],
             cap_treble_series: TptCapacitor::new(design.treble_series_capacitor_farads, dt),
             cap_bass_top: TptCapacitor::new(design.bass_top_capacitor_farads, dt),
@@ -226,10 +228,12 @@ impl ToneStackProcessor {
     }
 
     pub fn set_controls(&mut self, controls: ToneStackControls) {
-        self.controls = ToneStackControls {
+        let controls = ToneStackControls {
             bass: controls.bass.clamp(0.0, 1.0),
             treble: controls.treble.clamp(0.0, 1.0),
         };
+        self.matrix_dirty |= self.controls != controls;
+        self.controls = controls;
     }
 
     pub fn reset(&mut self) {
@@ -248,6 +252,7 @@ impl ToneStackProcessor {
         self.load_ohms = other.load_ohms;
         self.controls = other.controls;
         self.mna.restore_from(&other.mna);
+        self.matrix_dirty = other.matrix_dirty;
         self.solution = other.solution;
         self.cap_treble_series = other.cap_treble_series;
         self.cap_bass_top = other.cap_bass_top;
@@ -257,22 +262,35 @@ impl ToneStackProcessor {
 
     /// Procesa un sample con la entrada como tensión física.
     pub fn process_sample(&mut self, input: f64) -> f64 {
-        let (r_bw, r_wc) = bass_pot_split(self.design.bass_pot_ohms, self.controls.bass);
-        let (r_t_out, r_out_t2) =
-            treble_pot_split(self.design.treble_pot_ohms, self.controls.treble);
-
         let mna = &mut self.mna;
-        mna.clear();
-        mna.add_conductance(NODE_IN, GND, 1.0 / self.source_ohms);
-        mna.add_conductance(NODE_IN, NODE_B, 1.0 / self.design.series_resistor_ohms);
-        mna.add_conductance(NODE_B, NODE_W, 1.0 / r_bw);
-        mna.add_conductance(NODE_W, NODE_C, 1.0 / r_wc);
-        mna.add_conductance(NODE_C, GND, 1.0 / self.design.bass_stop_resistor_ohms);
-        mna.add_conductance(NODE_W, GND, 1.0 / self.design.bass_cut_resistor_ohms);
-        mna.add_conductance(NODE_W, NODE_T1, 1.0 / self.design.mid_resistor_ohms);
-        mna.add_conductance(NODE_T1, NODE_OUT, 1.0 / r_t_out);
-        mna.add_conductance(NODE_OUT, NODE_T2, 1.0 / r_out_t2);
-        mna.add_conductance(NODE_OUT, GND, 1.0 / self.load_ohms);
+        if self.matrix_dirty {
+            let (r_bw, r_wc) = bass_pot_split(self.design.bass_pot_ohms, self.controls.bass);
+            let (r_t_out, r_out_t2) =
+                treble_pot_split(self.design.treble_pot_ohms, self.controls.treble);
+
+            mna.clear();
+            mna.add_conductance(NODE_IN, GND, 1.0 / self.source_ohms);
+            mna.add_conductance(NODE_IN, NODE_B, 1.0 / self.design.series_resistor_ohms);
+            mna.add_conductance(NODE_B, NODE_W, 1.0 / r_bw);
+            mna.add_conductance(NODE_W, NODE_C, 1.0 / r_wc);
+            mna.add_conductance(NODE_C, GND, 1.0 / self.design.bass_stop_resistor_ohms);
+            mna.add_conductance(NODE_W, GND, 1.0 / self.design.bass_cut_resistor_ohms);
+            mna.add_conductance(NODE_W, NODE_T1, 1.0 / self.design.mid_resistor_ohms);
+            mna.add_conductance(NODE_T1, NODE_OUT, 1.0 / r_t_out);
+            mna.add_conductance(NODE_OUT, NODE_T2, 1.0 / r_out_t2);
+            mna.add_conductance(NODE_OUT, GND, 1.0 / self.load_ohms);
+
+            for (a, b, cap) in [
+                (NODE_IN, NODE_T1, &self.cap_treble_series),
+                (NODE_B, NODE_W, &self.cap_bass_top),
+                (NODE_C, NODE_W, &self.cap_bass_bottom),
+                (NODE_T2, GND, &self.cap_treble_shunt),
+            ] {
+                mna.add_conductance(a, b, cap.conductance());
+            }
+            self.matrix_dirty = false;
+        }
+        mna.clear_rhs();
 
         for (a, b, cap) in [
             (NODE_IN, NODE_T1, &self.cap_treble_series),
@@ -281,7 +299,6 @@ impl ToneStackProcessor {
             (NODE_T2, GND, &self.cap_treble_shunt),
         ] {
             let ieq = cap.companion_current();
-            mna.add_conductance(a, b, cap.conductance());
             mna.add_current_injection(a, ieq);
             mna.add_current_injection(b, -ieq);
         }
@@ -337,6 +354,29 @@ mod tests {
 
     fn design() -> ToneStackDesign {
         ToneStackDesign::from_circuit(&test_circuit()).expect("valores presentes en el JSON")
+    }
+
+    #[test]
+    fn cached_tone_matches_rebuilt_network_during_automation_and_reset() {
+        let mut cached = ToneStackProcessor::new(design(), 50_000.0, 270_000.0, 48_000.0, 1);
+        let mut rebuilt = cached.clone();
+        for i in 0..4096 {
+            if i % 256 == 0 {
+                let controls = ToneStackControls {
+                    bass: (i % 1024) as f32 / 1023.0,
+                    treble: 1.0 - (i % 1024) as f32 / 1023.0,
+                };
+                cached.set_controls(controls);
+                rebuilt.set_controls(controls);
+            }
+            if i == 2048 {
+                cached.reset();
+                rebuilt.reset();
+            }
+            rebuilt.matrix_dirty = true;
+            let input = (i as f64 * 0.13).sin();
+            assert_eq!(cached.process_sample(input), rebuilt.process_sample(input));
+        }
     }
 
     #[test]

@@ -457,12 +457,13 @@ impl PhaseInverter7199 {
             // solución completa (pantalla/cátodo acoplados).
             let plate_current_max_a =
                 supply / plate_resistor + self.coupling_conductance * plate_op;
-            let mut probe_jacobian = [[0.0_f64; 3]; 3];
-            let mut probe_residual = [0.0_f64; 3];
             let mut probe_state = x;
-            let mut plate_residual = |state: &[f64; 3]| -> f64 {
-                residual_and_jacobian(state, &mut probe_residual, &mut probe_jacobian);
-                probe_residual[2]
+            let plate_residual = |state: &[f64; 3]| -> f64 {
+                self.pentode.plate_current_cathode(
+                    plate_for(state[2]) - state[1],
+                    state[0] - state[1],
+                    grid_v - state[1],
+                ) - state[2]
             };
             let (mut low, mut high) = (0.0_f64, plate_current_max_a);
             probe_state[2] = low;
@@ -555,13 +556,20 @@ impl PhaseInverter7199 {
                 break;
             }
         }
-        let (residual, _) = evaluate(current);
+        let value_only = |current: f64| {
+            let plate_v = supply - plate_load * current;
+            let cathode_v = cathode_load * current;
+            self.triode
+                .plate_current(plate_v - cathode_v, grid_v - cathode_v)
+                - current
+        };
+        let residual = value_only(current);
         if !converged || residual.abs() > 1e-12 {
             // Bisección monótona (`g` decrece) con bracket físico completo.
             let (mut low, mut high_b) = (0.0, high);
             for _ in 0..60 {
                 let middle = 0.5 * (low + high_b);
-                let (value, _) = evaluate(middle);
+                let value = value_only(middle);
                 if value > 0.0 {
                     low = middle;
                 } else {

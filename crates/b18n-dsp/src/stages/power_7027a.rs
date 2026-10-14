@@ -165,19 +165,7 @@ impl PushPullStage {
         self.nodes[0] = upper;
         self.nodes[1] = lower;
 
-        if self.solve_plates() {
-            let screen_v = self.config.screen_supply_v;
-            self.last_plate_current_a = [
-                self.model
-                    .plate_current(self.nodes[2], screen_v, self.nodes[0]),
-                self.model
-                    .plate_current(self.nodes[3], screen_v, self.nodes[1]),
-            ];
-            self.last_screen_current_a = [
-                self.model.screen_current(screen_v, self.nodes[0]),
-                self.model.screen_current(screen_v, self.nodes[1]),
-            ];
-        } else {
+        if !self.solve_plates() {
             self.convergence_failures += 1;
         }
 
@@ -235,13 +223,22 @@ impl PushPullStage {
                 break;
             }
         }
-        let (residual, _) = evaluate(grid_v);
+        let value_only = |grid_v: f64| {
+            current_for(grid_v)
+                - (grid_v - bias) * return_conductance
+                - self.model.grid_current(grid_v)
+        };
+        let residual = value_only(grid_v);
         if residual.abs() > 1e-7 {
             // `f` decrece con `vg`: bisección robusta en un bracket amplio.
             let (mut low, mut high) = (bias - 400.0, bias + 200.0);
             for _ in 0..80 {
                 let middle = 0.5 * (low + high);
-                let (value, _) = evaluate(middle);
+                // Further iterations cannot change this bracket in f64.
+                if middle == low || middle == high {
+                    break;
+                }
+                let value = value_only(middle);
                 if value > 0.0 {
                     low = middle;
                 } else {
@@ -270,16 +267,14 @@ impl PushPullStage {
         let screen_v = self.config.screen_supply_v;
         let (grid_1, grid_2) = (self.nodes[0], self.nodes[1]);
 
+        let curve_1 = self.model.prepare_plate_curve(screen_v, grid_1);
+        let curve_2 = self.model.prepare_plate_curve(screen_v, grid_2);
         let mut plate_1 = self.nodes[2].clamp(0.0, 2.0 * supply);
         let mut plate_2 = self.nodes[3].clamp(0.0, 2.0 * supply);
 
         for _ in 0..40 {
-            let (current_1, slope_1) = self
-                .model
-                .plate_current_with_vp_slope(plate_1, screen_v, grid_1);
-            let (current_2, slope_2) = self
-                .model
-                .plate_current_with_vp_slope(plate_2, screen_v, grid_2);
+            let (current_1, slope_1) = curve_1.current_with_slope(plate_1);
+            let (current_2, slope_2) = curve_2.current_with_slope(plate_2);
 
             let residual_sum =
                 plate_1 + plate_2 - 2.0 * supply + half_resistance * (current_1 + current_2);
@@ -308,6 +303,14 @@ impl PushPullStage {
             if step_1.abs() < 1e-9 && step_2.abs() < 1e-9 {
                 self.nodes[2] = plate_1;
                 self.nodes[3] = plate_2;
+                self.last_plate_current_a = [
+                    curve_1.current_with_slope(plate_1).0,
+                    curve_2.current_with_slope(plate_2).0,
+                ];
+                self.last_screen_current_a = [
+                    self.model.screen_current(screen_v, grid_1),
+                    self.model.screen_current(screen_v, grid_2),
+                ];
                 return true;
             }
         }
