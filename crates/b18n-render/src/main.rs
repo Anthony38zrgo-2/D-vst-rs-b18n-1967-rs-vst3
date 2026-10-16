@@ -16,7 +16,9 @@ use std::process::ExitCode;
 use clap::{Parser, ValueEnum};
 
 use b18n_config::{parse_reference, CircuitDefinition};
-use b18n_dsp::{B18nEngine, InputChannel, ProcessSpec, RuntimeControls, ToneStackDesign};
+use b18n_dsp::{
+    B18nEngine, InputChannel, ProcessSpec, RuntimeControls, SpeakerLoadSelection, ToneStackDesign,
+};
 use report::{
     metrics, now_utc, AudioFileReport, ModelReport, RenderReport, SettingsReport,
     ToneMeasurementReport,
@@ -91,6 +93,31 @@ impl SpeakerArg {
     }
 }
 
+/// Carga eléctrica del secundario del OT (B18-015).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum LoadArg {
+    /// Resistencia nominal del JSON (8 Ω); fallback declarado.
+    Resistive,
+    /// Equivalente RLC estimado del altavoz (`estimated`, overlay).
+    Lumped,
+}
+
+impl LoadArg {
+    fn selection(self) -> SpeakerLoadSelection {
+        match self {
+            Self::Resistive => SpeakerLoadSelection::NominalResistance,
+            Self::Lumped => SpeakerLoadSelection::EstimatedLumped,
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Resistive => "resistive",
+            Self::Lumped => "lumped-estimated",
+        }
+    }
+}
+
 /// Mediciones adicionales al procesado del WAV.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum MeasureArg {
@@ -126,6 +153,10 @@ struct Cli {
     /// Approximate speaker coloration: direct, 18 or 15.
     #[arg(long, value_enum, default_value_t = SpeakerArg::Direct)]
     speaker: SpeakerArg,
+    /// Carga eléctrica del secundario: resistive (nominal) o lumped (RLC
+    /// estimado del altavoz, B18-015).
+    #[arg(long, value_enum, default_value_t = LoadArg::Resistive)]
+    load: LoadArg,
     /// Mediciones adicionales (p. ej. `tone`).
     #[arg(long, value_enum)]
     measure: Option<MeasureArg>,
@@ -188,6 +219,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn Error>> {
         let controls = RuntimeControls {
             channel: cli.channel.to_input_channel(),
             speaker_profile: cli.speaker.profile(),
+            speaker_load: cli.load.selection(),
             cabinet_enabled: cli.cabinet == CabinetArg::On,
             ..RuntimeControls::default()
         };
@@ -238,6 +270,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn Error>> {
             oversampling: cli.oversampling,
             cabinet: cli.cabinet.as_str(),
             speaker: cli.speaker.as_str(),
+            load: cli.load.as_str(),
         },
         metrics: metrics(&output_channels),
         fidelity: circuit.fidelity.as_str().to_owned(),

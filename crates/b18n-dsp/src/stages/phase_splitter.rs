@@ -274,6 +274,50 @@ impl PhaseInverter7199 {
         self.plate_v
     }
 
+    /// Tensión de pantalla del pentodo del último sample (carga de fuente).
+    #[must_use]
+    pub fn pentode_screen_voltage(&self) -> f64 {
+        self.screen_v
+    }
+
+    /// Tensión de placa del triodo (reposo + desviación AC).
+    #[must_use]
+    pub fn triode_plate_voltage(&self) -> f64 {
+        self.operating_point.triode_plate_v + self.drive_upper
+    }
+
+    /// Corriente del triodo split-load (arranque cálido del solve).
+    #[must_use]
+    pub fn triode_current_a(&self) -> f64 {
+        self.triode_current_a
+    }
+
+    /// Actualiza los rieles dinámicos B18-012 sin reiniciar el estado.
+    pub fn set_rails(&mut self, preamp_supply_v: f64, triode_supply_v: f64) {
+        self.config.preamp_supply_v = preamp_supply_v;
+        self.config.triode_supply_v = triode_supply_v;
+    }
+
+    /// Carga del carril previo (H4): placa por 270 kΩ + pantalla por 470 kΩ.
+    /// Es la corriente por las resistencias de alimentación (lo que ve la
+    /// fuente), no solo la del tubo.
+    #[must_use]
+    pub fn preamp_load_a(&self) -> f64 {
+        let supply = self.config.preamp_supply_v;
+        let plate_branch = (supply - self.plate_v) / self.config.pentode_plate_ohms.max(1.0);
+        let screen_branch =
+            (supply - self.screen_v) / self.config.pentode_screen_feed_ohms.max(1.0);
+        (plate_branch + screen_branch).clamp(0.0, 0.05)
+    }
+
+    /// Carga del carril del triodo (H3): corriente por la 47 kΩ de placa.
+    #[must_use]
+    pub fn triode_load_a(&self) -> f64 {
+        let plate = self.triode_plate_voltage();
+        ((self.config.triode_supply_v - plate) / self.config.triode_plate_load_ohms.max(1.0))
+            .clamp(0.0, 0.05)
+    }
+
     #[must_use]
     pub fn convergence_failures(&self) -> u64 {
         self.convergence_failures
@@ -295,6 +339,20 @@ impl PhaseInverter7199 {
     #[must_use]
     pub fn latest_failure(&self) -> Option<crate::numerics::nonlinear::NewtonFailure> {
         self.latest_failure
+    }
+
+    /// Recalcula el reposo tras un cambio de rieles (B18-012, segunda pasada
+    /// de inicialización) y restablece el estado a él.
+    pub fn refresh_operating_point(&mut self) -> bool {
+        let solved = solve_operating_point(&self.pentode, &self.triode, &self.config);
+        let Some((op, upper, lower, _)) = solved else {
+            return false;
+        };
+        self.operating_point = op;
+        self.source_upper_ohms = upper;
+        self.source_lower_ohms = lower;
+        self.reset();
+        self.operating_point_solved()
     }
 
     /// Restablece al reposo resuelto (capacitores preseteados, arranques
@@ -835,11 +893,13 @@ fn solve_operating_point(
     let mut cathode = 1.0;
     for _ in 0..2000 {
         let vgk = -cathode;
-        // El modelo Koren usa tensiones referidas al cátodo.
-        let screen_current = pentode.screen_current(screen - cathode, vgk);
+        let plate_current = implicit_plate_current(pentode, config, screen - cathode, vgk, cathode);
+        let plate_v = supply - config.pentode_plate_ohms * plate_current;
+        // El modelo Koren usa tensiones referidas al cátodo y la división de
+        // pantalla calibrada necesita la tensión de placa.
+        let screen_current = pentode.screen_current(plate_v, screen - cathode, vgk);
         let screen_next = (supply / config.pentode_screen_feed_ohms - screen_current)
             / (1.0 / config.pentode_screen_feed_ohms + 1.0 / config.pentode_screen_ground_ohms);
-        let plate_current = implicit_plate_current(pentode, config, screen - cathode, vgk, cathode);
         // Con NFB, la corriente de la 22 kΩ (secundario a 0 V en DC) sale del
         // cátodo: (Ip+Ig2) = vk/Rk + vk/Rf.
         let cathode_next = (plate_current + screen_current)

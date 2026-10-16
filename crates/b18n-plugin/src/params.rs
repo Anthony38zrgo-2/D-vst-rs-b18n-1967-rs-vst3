@@ -7,7 +7,7 @@
 
 use std::sync::Mutex;
 
-use b18n_dsp::{InputChannel, RuntimeControls, SpeakerProfile};
+use b18n_dsp::{InputChannel, RuntimeControls, SpeakerLoadSelection, SpeakerProfile};
 use nih_plug::prelude::*;
 
 /// Entrada histórica seleccionada según los conectores del esquema.
@@ -90,12 +90,41 @@ pub struct AdvancedParams {
     /// Calidad de sobremuestreo; cambiarla reconfigura la latencia reportada.
     #[id = "oversampling"]
     pub oversampling: EnumParam<OversamplingFactor>,
+
+    /// Carga eléctrica del secundario del OT (B18-015; moderno, no histórico).
+    /// El equivalente RLC es `estimated` (overlay de calibración), no medido.
+    #[id = "load_model"]
+    pub load_model: EnumParam<LoadModelParam>,
 }
 
 impl Default for AdvancedParams {
     fn default() -> Self {
         Self {
             oversampling: EnumParam::new("Oversampling", OversamplingFactor::default()),
+            load_model: EnumParam::new("Load Model", LoadModelParam::default()),
+        }
+    }
+}
+
+/// Selección del modelo eléctrico de carga del secundario (B18-015).
+#[derive(Enum, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LoadModelParam {
+    /// Resistencia nominal del JSON histórico (8 Ω); fallback declarado.
+    #[id = "nominal"]
+    #[name = "Nominal resistance"]
+    #[default]
+    Nominal,
+    /// Equivalente RLC estimado del altavoz de 18" (overlay, `estimated`).
+    #[id = "rlc_estimated"]
+    #[name = "Speaker RLC (estimated)"]
+    RlcEstimated,
+}
+
+impl From<LoadModelParam> for SpeakerLoadSelection {
+    fn from(value: LoadModelParam) -> Self {
+        match value {
+            LoadModelParam::Nominal => Self::NominalResistance,
+            LoadModelParam::RlcEstimated => Self::EstimatedLumped,
         }
     }
 }
@@ -229,9 +258,11 @@ impl B18nParams {
             bass_2: self.bass_2.value(),
             treble_2: self.treble_2.value(),
             output_trim_db: self.output_trim_db.value(),
-            // No measured IR or reactive load; acoustic profiles are separate.
+            // No measured IR; acoustic profiles are separate from the
+            // electrical load (B18-015).
             cabinet_enabled: false,
             speaker_profile: self.speaker.value().into(),
+            speaker_load: self.advanced.load_model.value().into(),
         }
     }
 
@@ -264,6 +295,7 @@ mod tests {
             "bypass",
             "channel",
             "input_trim",
+            "load_model",
             "output_trim",
             "oversampling",
             "speaker",
@@ -276,7 +308,7 @@ mod tests {
         .map(str::to_owned)
         .collect();
         assert_eq!(ids, expected, "los IDs de automatización son un contrato");
-        assert_eq!(map.len(), 12, "sin IDs duplicados");
+        assert_eq!(map.len(), 13, "sin IDs duplicados");
     }
 
     #[test]

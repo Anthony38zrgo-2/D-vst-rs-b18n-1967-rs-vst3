@@ -49,6 +49,14 @@
       "generated_by": "scripts/spice/volume_network_sweep.py"
     },
     {
+      "path": "power_7027a/7027a_rca_digitized.csv",
+      "provenance": "manufacturer-datasheet",
+      "sha256": "23efe718ff289f6af181b0de4d75f17957302dbe76bd0f90cbb595129fcf5edf",
+      "description": "Curvas digitalizadas del datasheet RCA 7027-A (8-59): familia de placa a Vg1=0 con Ec2=50..450 V (p05), transferencia Ip/Ig2 a Vp=300 V, Ec2=300 V (p07) y una curva de Ig2 sin etiqueta para la forma Ig2(Vp) (p06).",
+      "conditions": "Digitalizacion del escaneo 1-bit con scripts/digitize_7027a_curves.py; incertidumbres declaradas +-5 V / +-3 mA (p05), +-1 V / +-2 mA (p07); ver power_7027a/README.md.",
+      "generated_by": "scripts/digitize_7027a_curves.py"
+    },
+    {
       "path": "phase_7199/b18n_7199_dc_1967_golden.txt",
       "provenance": "independent-SPICE",
       "sha256": "0dd2ad8a112b71690924606b239e23cce42f1401d6e536bb26a381ba2664ecef",
@@ -79,6 +87,62 @@
       "description": "Lectura cargada del nodo de rejilla del triodo 7199 con voltimetro de 20.000 Ohm/V (rango 250 V).",
       "conditions": "Contraste manual de servicio 1967 (65 V) con la carga del instrumento simulado; ver phase_7199/README.md.",
       "generated_by": "scripts/spice/run_spice.py"
+    },
+    {
+      "path": "power_supply/b18n_power_supply_dc_1967_golden.txt",
+      "provenance": "independent-SPICE",
+      "sha256": "3e47016f8cac2727bc5e8680d600840f4480c6e2144d70490903167f23ff5b8f",
+      "description": "Punto DC de la fuente B18-012 con cargas de reposo del modelo (B+ 505 V).",
+      "conditions": "ngspice 47 sobre scripts/spice/b18n_power_supply_1967.cir; Vsrc=518.935 V, Rrect=150 ohm, 1k/10k/22k, 30/40/40/40 uF, bias -55 V/15k/100 uF; ver power_supply/README.md.",
+      "generated_by": "scripts/spice/power_supply_reference.py"
+    },
+    {
+      "path": "power_supply/b18n_power_supply_tran_1967_golden.csv",
+      "provenance": "independent-SPICE",
+      "sha256": "287b62aa552e56ad804067a2240811d16758be64f29530a3395bbcebbe02348b",
+      "description": "Transitorio de la fuente B18-012 con escalon de +20 mA en H2 (sag ~2.9 V).",
+      "conditions": "ngspice 47, tran 0.25 ms/200 ms, escalon a t=50 ms; ver power_supply/README.md.",
+      "generated_by": "scripts/spice/power_supply_reference.py"
+    },
+    {
+      "path": "output_transformer/ot471_linear_spice.csv",
+      "provenance": "independent-SPICE",
+      "sha256": "39ad2cc9c9f3f1dacbf498be05b52f50b5990dfc51211afc4dda710f4b8a5990",
+      "description": "Respuesta compleja vsec/vs del equivalente diferencial del OT-471 (B18-013): Lm=28.7 H, Lleak=12 mH, Cp=100 pF, R_core=500 ohm, Rs=45 kohm; 93 frecuencias de 5 Hz a 200 kHz (magnitud y fase).",
+      "conditions": "ngspice 47 sobre scripts/spice/b18n_ot471_linear.cir (AC dec 20); el generador valida el netlist contra una implementacion analitica independiente (desviacion relativa < 1e-3); ver output_transformer/README.md.",
+      "generated_by": "scripts/spice/output_transformer_reference.py"
+    },
+    {
+      "path": "speaker_load/speaker_load_spice.csv",
+      "provenance": "independent-SPICE",
+      "sha256": "e8d041b5d6af3168f147aa6d5c43bb2b704ddeaa9e8a6ac452e5821b84b3b664",
+      "description": "Respuesta compleja vload/vs del terminal del altavoz: OT-471 lineal (B18-013) + carga RLC estimada del altavoz de 18\" (B18-015): Re=6.5 ohm, Le=0.8 mH, Res=23.5 ohm, Les=69.3 mH, Ces=180.6 uF (fs=45 Hz, Q=1.2, pico |Z|=30 ohm); 93 frecuencias de 5 Hz a 200 kHz (magnitud y fase).",
+      "conditions": "ngspice 47 sobre scripts/spice/b18n_speaker_load.cir (AC dec 20); el generador valida el netlist contra una implementacion analitica independiente (desviacion relativa < 1e-3); los parametros son estimated (no medida del Cleveland); ver speaker_load/README.md.",
+      "generated_by": "scripts/spice/speaker_load_reference.py"
+    },
+    {
+      "path": "nfb/coupled_ac.csv",
+      "provenance": "independent-SPICE",
+      "sha256": "11665bb62f89c1dc4b59fb9a701441f9c2f1c01be58aeeafbdc5bea7b7cc60cd",
+      "description": "B18-009 coupled output network, frozen rails, unloaded NFB sensing tap.",
+      "conditions": "ngspice 47; 380/460/505/500/-55 V; Rmix/2=135k; RCA capacitances; estimated OT and RLC.",
+      "generated_by": "scripts/spice/nfb_coupled_reference.py"
+    },
+    {
+      "path": "nfb/coupled_dc.csv",
+      "provenance": "independent-SPICE",
+      "sha256": "aa7e74ecee688918b2aea29ff2ee3d67949d16c0e8a95808cc65a0bb4014a19b",
+      "description": "B18-009 coupled output network, frozen rails, unloaded NFB sensing tap.",
+      "conditions": "ngspice 47; 380/460/505/500/-55 V; Rmix/2=135k; RCA capacitances; estimated OT and RLC.",
+      "generated_by": "scripts/spice/nfb_coupled_reference.py"
+    },
+    {
+      "path": "nfb/loop_margins.json",
+      "provenance": "independent-SPICE",
+      "sha256": "0541bdab7bd7854377c9fbecee4ca503b0f546ca31f9d9136c16062a7cd48dff",
+      "description": "B18-009 negative return-ratio margins and unstable 10 uV impulse; candidate must not ship.",
+      "conditions": "ngspice 47; frozen rails, unloaded sensing; AC 1 Hz to 100 MHz; transient max step 0.1 us.",
+      "generated_by": "scripts/spice/nfb_loop_margins.py"
     }
   ]
 }

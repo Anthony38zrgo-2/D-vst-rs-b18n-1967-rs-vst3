@@ -27,6 +27,8 @@ pub struct PentodeCurrents {
     pub d_plate_d_screen: f64,
     /// `∂Ip/∂Vgk`.
     pub d_plate_d_grid: f64,
+    /// `∂Ig2/∂Vpk` (no nula solo con la división de pantalla calibrada).
+    pub d_screen_d_plate: f64,
     /// `∂Ig2/∂Vsk`.
     pub d_screen_d_screen: f64,
     /// `∂Ig2/∂Vgk`.
@@ -41,6 +43,7 @@ impl PentodeCurrents {
         d_plate_d_plate: 0.0,
         d_plate_d_screen: 0.0,
         d_plate_d_grid: 0.0,
+        d_screen_d_plate: 0.0,
         d_screen_d_screen: 0.0,
         d_screen_d_grid: 0.0,
     };
@@ -193,6 +196,9 @@ impl PentodePlateCurve {
         if self.base == 0.0 {
             return (0.0, 0.0);
         }
+        // En el guard `Vp ≤ 0` la corriente se recorta a cero, pero se
+        // conserva la pendiente de la rodilla (`atan'(0)`): amortigua el
+        // Newton cerca de la frontera de corte (evita ciclos de período 2).
         let knee_argument = plate_v.max(0.0) / self.kvb;
         let knee = knee_argument.atan();
         let slope = self.base * (1.0 / self.kvb) / (1.0 + knee_argument * knee_argument);
@@ -300,14 +306,131 @@ impl KorenPentodeModel {
             .0
     }
 
-    /// Corriente de pantalla (A).
+    /// Transconductancia de pequeña señal en un punto (derivada numérica).
     #[must_use]
-    pub fn screen_current(&self, screen_v: f64, grid_v: f64) -> f64 {
+    pub fn transconductance(&self, plate_v: f64, screen_v: f64, grid_v: f64) -> f64 {
+        let step = 1e-3;
+        (self.plate_current(plate_v, screen_v, grid_v + step)
+            - self.plate_current(plate_v, screen_v, grid_v - step))
+            / (2.0 * step)
+    }
+
+    /// Resistencia de placa de pequeña señal en un punto (derivada numérica).
+    #[must_use]
+    pub fn plate_resistance(&self, plate_v: f64, screen_v: f64, grid_v: f64) -> f64 {
+        let step = 0.5;
+        let slope = (self.plate_current(plate_v + step, screen_v, grid_v)
+            - self.plate_current(plate_v - step, screen_v, grid_v))
+            / (2.0 * step);
+        1.0 / slope.max(1e-12)
+    }
+
+    /// Corriente de pantalla (A) y sus derivadas `(Ig2, ∂/∂Vp, ∂/∂Vs, ∂/∂Vg)`.
+    ///
+    /// Con la división calibrada, `Ig2 = Ip·D(Vp)` con `D(Vp) = F + G·e^(−Vp/V0)`
+    /// y las derivadas salen de las de placa (`∂Ig2/∂Vs = D·∂Ip/∂Vs`, etc.).
+    #[must_use]
+    pub fn screen_current_with_slopes(
+        &self,
+        plate_v: f64,
+        screen_v: f64,
+        grid_v: f64,
+    ) -> (f64, f64, f64, f64) {
+        if let Some(division) = self.screen_division(plate_v) {
+            let currents = self.currents_with_slopes(plate_v, screen_v, grid_v);
+            let volts = self.params.screen_ratio_volts.max(1e-6);
+            let d_division_d_plate = if self.params.screen_ratio_boost > 0.0 {
+                -self.params.screen_ratio_boost / volts * (-plate_v.max(0.0) / volts).exp()
+            } else {
+                0.0
+            };
+            return (
+                currents.plate_a * division,
+                currents.d_plate_d_plate * division + currents.plate_a * d_division_d_plate,
+                currents.d_plate_d_screen * division,
+                currents.d_plate_d_grid * division,
+            );
+        }
+        let base = screen_v / self.params.mu + grid_v + self.params.vct;
+        if base <= 1e-9 {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
+        let power = base.powf(self.params.ex - 1.0);
+        let current = power * base / self.params.kg2;
+        (
+            current,
+            0.0,
+            self.params.ex * power / (self.params.kg2 * self.params.mu),
+            self.params.ex * power / self.params.kg2,
+        )
+    }
+
+    /// Fracción de la corriente de placa desviada a pantalla (B18-011).
+    ///
+    /// Con `screen_ratio_floor == 0` devuelve `None` y manda la forma Koren
+    /// publicada; con un valor calibrado, `Ig2 = Ip·(F + G·e^(−Vp/V0))`.
+    fn screen_division(&self, plate_v: f64) -> Option<f64> {
+        if self.params.screen_ratio_floor <= 0.0 {
+            return None;
+        }
+        let volts = self.params.screen_ratio_volts.max(1e-6);
+        Some(
+            self.params.screen_ratio_floor
+                + self.params.screen_ratio_boost * (-plate_v.max(0.0) / volts).exp(),
+        )
+    }
+
+    /// Corriente de pantalla (A) para `Vp`, `Vs` y `Vg` referidas al cátodo.
+    ///
+    /// Dos formas, seleccionadas por la calibración del tubo:
+    /// - división calibrada `Ig2 = Ip·(F + G·e^(−Vp/V0))` (7027A, B18-011),
+    ///   que da la dependencia con `Vp` medida en el datasheet RCA;
+    /// - Koren publicada `(Vs/µ + Vg)^Ex / Kg2` (7199 y respaldo 6L6GC).
+    #[must_use]
+    pub fn screen_current(&self, plate_v: f64, screen_v: f64, grid_v: f64) -> f64 {
+        if let Some(division) = self.screen_division(plate_v) {
+            return self.plate_current(plate_v, screen_v, grid_v) * division;
+        }
         let base = screen_v / self.params.mu + grid_v + self.params.vct;
         if base <= 1e-9 {
             return 0.0;
         }
         base.powf(self.params.ex) / self.params.kg2
+    }
+
+    /// Plate current and derivatives (Vp, Vg) at fixed screen voltage.
+    /// The coupled output solve does not need screen derivatives for the 7027A;
+    /// avoid computing the screen-partition exponentials in every Newton trial.
+    #[must_use]
+    pub fn plate_grid_slopes(&self, plate: f64, screen: f64, grid: f64) -> (f64, f64, f64) {
+        if screen <= 1e-6 {
+            return (0.0, 0.0, 0.0);
+        }
+        let inner = self.params.kp * (1.0 / self.params.mu + grid / screen);
+        let (softplus, sigmoid) = if inner > 40.0 {
+            (inner, 1.0)
+        } else if inner < -40.0 {
+            (0.0, 0.0)
+        } else {
+            let z = inner.exp();
+            (z.ln_1p(), z / (1.0 + z))
+        };
+        let e1 = screen / self.params.kp * softplus;
+        if e1 <= 0.0 {
+            return (0.0, 0.0, 0.0);
+        }
+        let weight = 2.0 * e1.powf(self.params.ex) / self.params.kg1;
+        let argument = plate.max(0.0) / self.params.kvb;
+        let knee = argument.atan();
+        (
+            weight * knee,
+            if plate > 0.0 {
+                weight / (self.params.kvb * (1.0 + argument * argument))
+            } else {
+                0.0
+            },
+            self.params.ex * weight / e1 * sigmoid * knee,
+        )
     }
 
     /// Corrientes de placa y pantalla con derivadas analíticas respecto de las
@@ -330,7 +453,58 @@ impl KorenPentodeModel {
             return PentodeCurrents::ZERO;
         }
 
-        // Pantalla: Ig2 = (sk/µ + gk + vct)^Ex / Kg2.
+        // Placa: Ip = 2·E1^Ex/Kg1·atan(Vpk/Kvb), E1 = (sk/Kp)·softplus(Kp(1/µ + gk/sk)).
+        let inner = self.params.kp * (1.0 / self.params.mu + grid_k / screen_k);
+        // Una sola exponencial alimenta softplus y sigmoide (Ola 8).
+        let (softplus, sigmoid) = if inner > 40.0 {
+            (inner, 1.0)
+        } else if inner < -40.0 {
+            (0.0, 0.0)
+        } else {
+            let z = inner.exp();
+            (z.ln_1p(), z / (1.0 + z))
+        };
+        let e1 = screen_k / self.params.kp * softplus;
+        let (plate_a, d_plate_d_plate, d_plate_d_screen, d_plate_d_grid) = if e1 <= 0.0 {
+            (0.0, 0.0, 0.0, 0.0)
+        } else {
+            let weight = 2.0 * e1.powf(self.params.ex) / self.params.kg1;
+            // ∂w/∂E1 = Ex·w/E1 (w = 2·E1^Ex/Kg1).
+            let weight_slope = self.params.ex * weight / e1;
+            // ∂E1/∂sk = softplus/Kp − (gk/sk)·sigmoid;  ∂E1/∂gk = sigmoid.
+            let d_e1_d_screen = softplus / self.params.kp - grid_k / screen_k * sigmoid;
+            let d_e1_d_grid = sigmoid;
+            let knee_argument = plate_k / self.params.kvb;
+            let knee = knee_argument.atan();
+            let d_knee_d_plate = (1.0 / self.params.kvb) / (1.0 + knee_argument * knee_argument);
+            (
+                weight * knee,
+                weight * d_knee_d_plate,
+                weight_slope * d_e1_d_screen * knee,
+                weight_slope * d_e1_d_grid * knee,
+            )
+        };
+
+        // Pantalla: división calibrada o Koren publicada.
+        if let Some(division) = self.screen_division(plate_k) {
+            let volts = self.params.screen_ratio_volts.max(1e-6);
+            let d_division_d_plate = if self.params.screen_ratio_boost > 0.0 {
+                -self.params.screen_ratio_boost / volts * (-plate_k / volts).exp()
+            } else {
+                0.0
+            };
+            return PentodeCurrents {
+                plate_a,
+                screen_a: plate_a * division,
+                d_plate_d_plate,
+                d_plate_d_screen,
+                d_plate_d_grid,
+                d_screen_d_plate: d_plate_d_plate * division + plate_a * d_division_d_plate,
+                d_screen_d_screen: d_plate_d_screen * division,
+                d_screen_d_grid: d_plate_d_grid * division,
+            };
+        }
+
         let base = screen_k / self.params.mu + grid_k + self.params.vct;
         let (screen_a, d_screen_d_screen, d_screen_d_grid) = if base <= 1e-9 {
             (0.0, 0.0, 0.0)
@@ -344,45 +518,13 @@ impl KorenPentodeModel {
             )
         };
 
-        // Placa: Ip = 2·E1^Ex/Kg1·atan(Vpk/Kvb), E1 = (sk/Kp)·softplus(Kp(1/µ + gk/sk)).
-        let inner = self.params.kp * (1.0 / self.params.mu + grid_k / screen_k);
-        // Una sola exponencial alimenta softplus y sigmoide (Ola 8).
-        let (softplus, sigmoid) = if inner > 40.0 {
-            (inner, 1.0)
-        } else if inner < -40.0 {
-            (0.0, 0.0)
-        } else {
-            let z = inner.exp();
-            (z.ln_1p(), z / (1.0 + z))
-        };
-        let e1 = screen_k / self.params.kp * softplus;
-        if e1 <= 0.0 {
-            return PentodeCurrents {
-                plate_a: 0.0,
-                screen_a,
-                d_plate_d_plate: 0.0,
-                d_plate_d_screen: 0.0,
-                d_plate_d_grid: 0.0,
-                d_screen_d_screen,
-                d_screen_d_grid,
-            };
-        }
-        let weight = 2.0 * e1.powf(self.params.ex) / self.params.kg1;
-        // ∂w/∂E1 = Ex·w/E1 (w = 2·E1^Ex/Kg1).
-        let weight_slope = self.params.ex * weight / e1;
-        // ∂E1/∂sk = softplus/Kp − (gk/sk)·sigmoid;  ∂E1/∂gk = sigmoid.
-        let d_e1_d_screen = softplus / self.params.kp - grid_k / screen_k * sigmoid;
-        let d_e1_d_grid = sigmoid;
-        let knee_argument = plate_k / self.params.kvb;
-        let knee = knee_argument.atan();
-        let d_knee_d_plate = (1.0 / self.params.kvb) / (1.0 + knee_argument * knee_argument);
-
         PentodeCurrents {
-            plate_a: weight * knee,
+            plate_a,
             screen_a,
-            d_plate_d_plate: weight * d_knee_d_plate,
-            d_plate_d_screen: weight_slope * d_e1_d_screen * knee,
-            d_plate_d_grid: weight_slope * d_e1_d_grid * knee,
+            d_plate_d_plate,
+            d_plate_d_screen,
+            d_plate_d_grid,
+            d_screen_d_plate: 0.0,
             d_screen_d_screen,
             d_screen_d_grid,
         }
@@ -508,6 +650,9 @@ mod pentode_tests {
             kp: 48.0,
             kvb: 12.0,
             vct: 0.0,
+            screen_ratio_floor: 0.0,
+            screen_ratio_boost: 0.0,
+            screen_ratio_volts: 50.0,
             grid_conduction_threshold_v: 0.0,
             grid_conduction_resistance_ohms: 500.0,
         })
@@ -577,7 +722,7 @@ mod pentode_tests {
         // Ia ≈ 54 mA e Ig2 ≈ 5 mA (parámetros de Koren con esa misma base).
         let model = model_6l6gc();
         let ip = model.plate_current(360.0, 250.0, -18.0);
-        let ig2 = model.screen_current(250.0, -18.0);
+        let ig2 = model.screen_current(360.0, 250.0, -18.0);
         assert!((ip - 0.054).abs() / 0.054 < 0.30, "Ip {ip}");
         assert!((ig2 - 0.0055).abs() / 0.0055 < 0.45, "Ig2 {ig2}");
     }
@@ -595,7 +740,7 @@ mod pentode_tests {
             let currents = model.currents_with_slopes(plate, screen, grid);
             // Coherencia con los métodos existentes.
             assert!((currents.plate_a - model.plate_current(plate, screen, grid)).abs() < 1e-15);
-            assert!((currents.screen_a - model.screen_current(screen, grid)).abs() < 1e-15);
+            assert!((currents.screen_a - model.screen_current(plate, screen, grid)).abs() < 1e-15);
             assert!(
                 (currents.d_plate_d_plate
                     - model.plate_current_with_vp_slope(plate, screen, grid).1)
@@ -618,17 +763,22 @@ mod pentode_tests {
                 model.plate_current(plate, screen, grid - step),
             );
             let d_ss = fd(
-                model.screen_current(screen + step, grid),
-                model.screen_current(screen - step, grid),
+                model.screen_current(plate, screen + step, grid),
+                model.screen_current(plate, screen - step, grid),
             );
             let d_sg = fd(
-                model.screen_current(screen, grid + step),
-                model.screen_current(screen, grid - step),
+                model.screen_current(plate, screen, grid + step),
+                model.screen_current(plate, screen, grid - step),
+            );
+            let d_sp = fd(
+                model.screen_current(plate + step, screen, grid),
+                model.screen_current(plate - step, screen, grid),
             );
             for (name, analytic, numeric) in [
                 ("∂Ip/∂Vp", currents.d_plate_d_plate, d_pp),
                 ("∂Ip/∂Vs", currents.d_plate_d_screen, d_ps),
                 ("∂Ip/∂Vg", currents.d_plate_d_grid, d_pg),
+                ("∂Ig2/∂Vp", currents.d_screen_d_plate, d_sp),
                 ("∂Ig2/∂Vs", currents.d_screen_d_screen, d_ss),
                 ("∂Ig2/∂Vg", currents.d_screen_d_grid, d_sg),
             ] {
@@ -677,9 +827,9 @@ mod pentode_tests {
         assert!(model.plate_current(400.0, 250.0, -60.0) < 1e-4);
         assert!(model.plate_current(400.0, 250.0, -120.0) < 1e-9);
         assert_eq!(model.plate_current(400.0, 0.0, -18.0), 0.0);
-        assert_eq!(model.screen_current(250.0, -60.0), 0.0);
+        assert_eq!(model.screen_current(400.0, 250.0, -60.0), 0.0);
         assert!(model.plate_current(1e6, 250.0, -18.0).is_finite());
-        assert!(model.screen_current(1e6, 1e6).is_finite());
+        assert!(model.screen_current(1e6, 1e6, -18.0).is_finite());
     }
 
     #[test]
@@ -692,5 +842,89 @@ mod pentode_tests {
         assert!(slope_below < 1e-12, "pendiente residual: {slope_below}");
         assert!(at > 0.0 && above > at);
         assert!(slope_above > 0.0 && slope_above <= 1.0 / 400.0);
+    }
+
+    #[test]
+    fn calibrated_screen_division_depends_on_plate_voltage() {
+        // Parámetros de la 7027A (B18-010/011); la división Ig2/Ip sube al
+        // caer Vp de forma analítica y coherente con diferencias finitas.
+        let model = KorenPentodeModel::new(KorenPentodeParameters {
+            mu: 9.0,
+            ex: 1.298_317,
+            kg1: 1_087.896_529,
+            kg2: 4_500.0,
+            kp: 42.405_486,
+            kvb: 38.352_094,
+            vct: 0.0,
+            screen_ratio_floor: 0.015_971,
+            screen_ratio_boost: 0.142_476,
+            screen_ratio_volts: 255.305,
+            grid_conduction_threshold_v: 0.0,
+            grid_conduction_resistance_ohms: 500.0,
+        });
+        let (low_plate, _, _, _) = model.screen_current_with_slopes(60.0, 300.0, -10.0);
+        let (mid_plate, _, _, _) = model.screen_current_with_slopes(300.0, 300.0, -10.0);
+        let (high_plate, _, _, _) = model.screen_current_with_slopes(600.0, 300.0, -10.0);
+        assert!(
+            low_plate > mid_plate && mid_plate > high_plate,
+            "Ig2({low_plate}), Ig2({mid_plate}), Ig2({high_plate})"
+        );
+        let plate_low = model.plate_current(60.0, 300.0, -10.0);
+        assert!(
+            low_plate <= plate_low * (0.019_608 + 0.139_808) * 1.000_001
+                && low_plate >= plate_low * 0.019_608,
+            "Ig2 fuera de la banda de la división"
+        );
+
+        // Derivadas analíticas contra diferencias finitas fuera de la rodilla.
+        let step = 1e-4;
+        for (plate, screen) in [(300.0, 300.0), (550.0, 320.0)] {
+            let (_, d_vp, d_vs, d_vg) = model.screen_current_with_slopes(plate, screen, -10.0);
+            let fd_vp = (model.screen_current(plate + step, screen, -10.0)
+                - model.screen_current(plate - step, screen, -10.0))
+                / (2.0 * step);
+            let fd_vs = (model.screen_current(plate, screen + step, -10.0)
+                - model.screen_current(plate, screen - step, -10.0))
+                / (2.0 * step);
+            let fd_vg = (model.screen_current(plate, screen, -10.0 + step)
+                - model.screen_current(plate, screen, -10.0 - step))
+                / (2.0 * step);
+            let scale = |value: f64| value.abs().max(1e-12);
+            assert!(
+                (d_vp - fd_vp).abs() / scale(fd_vp) < 1e-3,
+                "dIg2/dVp {d_vp} {fd_vp}"
+            );
+            assert!(
+                (d_vs - fd_vs).abs() / scale(fd_vs) < 1e-3,
+                "dIg2/dVs {d_vs} {fd_vs}"
+            );
+            assert!(
+                (d_vg - fd_vg).abs() / scale(fd_vg) < 1e-3,
+                "dIg2/dVg {d_vg} {fd_vg}"
+            );
+        }
+    }
+    #[test]
+    fn fixed_screen_plate_slopes_match_full_model_and_finite_differences() {
+        let parameters = crate::circuit::test_circuit()
+            .tube_models
+            .koren_7027a
+            .expect("7027A");
+        let model = KorenPentodeModel::new(parameters);
+        for plate in [-20.0, 20.0, 100.0, 500.0, 1000.0] {
+            for grid in [-80.0, -55.0, -20.0, 0.0] {
+                let (current, dp, dg) = model.plate_grid_slopes(plate, 500.0, grid);
+                assert!((current - model.plate_current(plate, 500.0, grid)).abs() < 1e-12);
+                let h = 1e-4;
+                let numeric_dp = (model.plate_current(plate + h, 500.0, grid)
+                    - model.plate_current(plate - h, 500.0, grid))
+                    / (2.0 * h);
+                let numeric_dg = (model.plate_current(plate, 500.0, grid + h)
+                    - model.plate_current(plate, 500.0, grid - h))
+                    / (2.0 * h);
+                assert!((dp - numeric_dp).abs() < 1e-7);
+                assert!((dg - numeric_dg).abs() < 1e-7);
+            }
+        }
     }
 }

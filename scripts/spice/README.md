@@ -1,5 +1,21 @@
 # Referencias SPICE (ngspice) del B-18N 1967
 
+## B18-009: referencia de lazo corregida (2026-10-16)
+
+`nfb_coupled_reference.py` genera AC/DC para el equivalente diferencial del
+OT con polaridad consistente con el motor. `nfb_loop_margins.py` mide retorno
+y transitorio, y registra **márgenes negativos/oscilación**, no aprobación.
+Ambos escriben en `assets/fixtures/reference/nfb/` y actualizan el manifiesto.
+El anterior `nfb_loop_reference.py` se conserva como exploración histórica;
+su respuesta AC sin pico no certifica estabilidad. Detalle y límites:
+[`docs/B18_009_STATUS.md`](../../docs/B18_009_STATUS.md).
+
+```powershell
+python scripts/spice/nfb_coupled_reference.py
+python scripts/spice/nfb_loop_margins.py
+python scripts/check_reference_manifest.py
+```
+
 ## Política
 
 - Los netlists de esta carpeta son referencias **independientes** del código
@@ -69,6 +85,9 @@ si ngspice reporta errores.
 | `b18n_7199_nfb_dc_1967.cir` | Reposo DC con la NFB (22 kΩ de la toma de 16 Ω al cátodo del pentodo) | Verificado |
 | `b18n_7199_ac_1967.cir` | Respuesta AC del inversor (10 frecuencias); golden con `phase_inverter_reference.py` | Verificado |
 | `b18n_7199_tran_1967.cir` | Transitorio 1 kHz/0.2 V del inversor (extremos en 15–20 ms) | Verificado |
+| `b18n_power_supply_1967.cir` | Fuente B18-012 (RC + rectificador promedio, DC + escalón +20 mA); golden con `power_supply_reference.py` | Verificado |
+| `b18n_ot471_linear.cir` | OT-471 lineal (B18-013): equivalente diferencial Lm/Lleak/Cp/R_core; golden con `output_transformer_reference.py` | Verificado |
+| `b18n_speaker_load.cir` | Carga RLC estimada del altavoz sobre el OT-471 (B18-015): Re/Le + (Res∥Les∥Ces); golden con `speaker_load_reference.py` | Verificado |
 | `b18n_power_7027a_1967.cir` | Etapa 7027A / OT-471 (curvas originales si se obtienen) | Pendiente (P2) |
 
 Barrer el tone stack y regenerar los goldens:
@@ -78,6 +97,9 @@ python scripts/spice/tone_stack_sweep.py          # red aislada (fixture histór
 python scripts/spice/tone_stack_coupled_sweep.py  # acoplo + red + carga (B18-003)
 python scripts/spice/input_jacks_sweep.py         # redes de jack (B18-007)
 python scripts/spice/volume_network_sweep.py      # red de volumen (B18-005)
+python scripts/spice/power_supply_reference.py    # fuente (B18-012)
+python scripts/spice/output_transformer_reference.py  # OT-471 (B18-013)
+python scripts/spice/speaker_load_reference.py        # carga RLC del altavoz (B18-015)
 ```
 
 Las salidas golden se guardan en `assets/fixtures/reference/<tema>/` con un
@@ -91,3 +113,5 @@ README que documenta versión, condiciones y tolerancias:
 - `assets/fixtures/reference/phase_7199/b18n_7199_meter_loading_golden.txt`
 - `assets/fixtures/reference/phase_7199/b18n_7199_ac_1967_golden.csv`
 - `assets/fixtures/reference/phase_7199/b18n_7199_tran_1967_golden.txt`
+- `assets/fixtures/reference/output_transformer/ot471_linear_spice.csv`
+- `assets/fixtures/reference/speaker_load/speaker_load_spice.csv`

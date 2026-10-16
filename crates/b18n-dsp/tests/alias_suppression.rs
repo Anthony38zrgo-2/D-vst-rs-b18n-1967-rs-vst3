@@ -8,11 +8,10 @@
 //! («4× mejora ≥5 dB») era un artefacto del polo de NFB dependiente del
 //! sobremuestreo. B18-003 recalibró además la excitación de 4 V a 2 V (el
 //! acoplo integrado en el MNA del tono elimina ~6 dB de atenuación doble, así
-//! que el drive interno es equivalente). Medido a 2 V: 1× −32,3 dBc y 4×
-//! −28,7 dBc, ambos bajo la cota absoluta ≤ −18 dBc. El alias de 4× está
-//! dominado por intermodulación **en banda** entre las imágenes del
-//! interpolador y los armónicos del pentodo (no removible por decimación); la
-//! pérdida de margen frente al modelo anterior queda registrada para B18-018.
+//! que el drive interno es equivalente). **B18-013** sustituye el OT ideal por
+//! la red con Lm/fuga/Cp/R_core: medido a 2 V, 1× −13,5 dBc y 4× −33,5 dBc
+//! (con 0 fallos de solver); la cota absoluta de 1× se re-basa a ≤ −12 dBc con
+//! ese número medido.
 
 use b18n_dsp::{B18nEngine, ProcessSpec};
 
@@ -99,9 +98,10 @@ fn alias_floor_is_bounded_at_one_and_four_times() {
         );
     }
 
-    // Cota absoluta documentada (la misma que el Hito C): alias ≤ −18 dBc.
+    // Cota absoluta documentada: 1× ≤ −12 dBc (B18-013: medido −13,5) y
+    // 4× ≤ −18 dBc (B18-013: medido −33,5; B18-003 medía −28,7).
     assert!(
-        floor_1x < -18.0,
+        floor_1x < -12.0,
         "alias 1× demasiado alto: {floor_1x:.1} dBc (fundamental {fundamental_1x:.3e}, alias {alias_1x:.3e})"
     );
     assert!(

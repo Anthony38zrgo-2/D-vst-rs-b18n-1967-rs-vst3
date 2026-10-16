@@ -302,6 +302,19 @@ impl NonlinearTriodeStage {
         self.iterations_last = 0;
     }
 
+    /// Actualiza el riel dinámico B18-012 sin reiniciar el estado.
+    pub fn set_supply_v(&mut self, supply_v: f64) {
+        self.config.supply_v = supply_v;
+    }
+
+    /// Corriente que la etapa pide al carril previo: corriente por la
+    /// resistencia de placa (lo que ve la fuente en DC/AC lenta).
+    #[must_use]
+    pub fn supply_current_a(&self) -> f64 {
+        ((self.config.supply_v - self.nodes[2]) / self.config.plate_resistor_ohms.max(1.0))
+            .clamp(0.0, 0.05)
+    }
+
     /// Actualiza la red de entrada (B18-007): resistencia serie del jack y
     /// carga efectiva de rejilla. La serie `0` (jack directo, `instrument`)
     /// usa un piso numérico de 1 Ω para no singularizar la malla.

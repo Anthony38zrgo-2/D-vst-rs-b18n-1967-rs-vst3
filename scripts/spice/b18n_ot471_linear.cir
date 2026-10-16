@@ -1,0 +1,33 @@
+* B-18N 1967 - OT-471 lineal (B18-013): equivalente diferencial referido al primario
+* Fuente: SCH-567 (OT-471: 4300 ohm placa-placa, 8/16 ohm, DCR 300 / 0.4 ohm).
+* Parametros estimados (overlay, estimated): Lm=28.7 H, Lleak=12 mH, Cp=100 pF,
+* R_core=500 ohm; fuente Thevenin Rs=45 kohm = 2*rp(7027A, datasheet RCA clase A1).
+* Red implementada por el motor, entre los nodos a-b (tras las dos medias DCR):
+*   rama de flujo  R_core + Lm (el ideal se acopla a la tension de Lm),
+*   rama reflejada Lleak + N^2*(Rcarga + DCR_sec) por el transformador ideal,
+*   Cp en paralelo placa-placa.
+* Convencion de signos del motor: id positivo (placa 1) -> secundario negativo
+* (vsec = -N*i_ref*Rcarga); la polaridad del acople E/F reproduce esa convencion.
+Vd   vs 0 AC 1
+Rs   vs p1 45k
+Rdc1 p1 a 150
+Rdc2 b 0 150
+Rcore a f 500
+Lm   f b 28.7
+Cp   a b 100p
+Ll   f g 12m
+* Transformador ideal n = 23.18 (secundario de 8 ohm)
+* E invierte la polaridad (convencion del motor: id>0 -> vsec<0) y F refleja
+* la corriente secundaria al primario con el signo correspondiente.
+Esec s1 0 b g {1/23.18}
+Vsense s1 s2 0
+Rdsec s2 s4 0.4
+Rload s4 0 8
+Fpri g b Vsense {-1/23.18}
+.ac dec 20 5 200k
+.control
+set numdgt=12
+run
+wrdata ot471_ac.txt vm(s4) vp(s4)
+.endc
+.end

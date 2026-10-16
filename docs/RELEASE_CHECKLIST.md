@@ -4,12 +4,12 @@
 
 - [x] `cargo fmt --all -- --check` sin diferencias.
 - [x] `cargo clippy --workspace --all-targets -- -D warnings` limpio.
-- [x] `cargo test --workspace` verde (140 tests; determinismo y robustez incluidos).
+- [x] `cargo test --workspace` verde (190 tests tras B18-012; determinismo y robustez incluidos).
 - [x] Sin `unwrap()`/`panic!` en rutas de audio; sin asignaciones en
   `process()`/`reset()` (test no-alloc del plugin; solver const-genérico).
 - [x] `reset()` verificado; cambio de sample rate y de tamaño de bloque probados.
 - [x] Presupuesto de CPU medido con guardia (Ola 8): bench estéreo 4× a 48 kHz
-  con 23,6 µs/muestra, guardia de `cpu_budget.rs` en 25 µs; niveles DAW
+  con 27-29,5 µs/muestra, guardia de `cpu_budget.rs` en 32 µs; niveles DAW
   verificados (`daw_levels.rs`: instancia por defecto sin rebasar la escala
   del host y 0 fallos de congelación a 0,2/1,0 V).
 

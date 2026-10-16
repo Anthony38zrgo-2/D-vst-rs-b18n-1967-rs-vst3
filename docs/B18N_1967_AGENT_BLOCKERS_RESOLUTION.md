@@ -1,5 +1,13 @@
 # Ampeg B-18N / B-15ND (5/67): resolución de bloqueos y guía para el agente Rust/VST3
 
+> **Bloqueo nuevo B18-009 (2026-10-16):** se implementó un candidato conjunto
+> con capacitancias RCA, pero la referencia continua corregida tiene margen
+> HF negativo y oscila tras un pulso de 10 µV; también falla el caso Rust
+> reactivo cerrado. No atribuir ya todo el problema al `z^-1`: falta validar
+> la topología/caracterización HF continua. El candidato permanece aislado;
+> el plugin conserva el camino anterior. Véase
+> [`B18_009_STATUS.md`](B18_009_STATUS.md) para pruebas y reproducción.
+
 **Ámbito:** auditoría de los impedimentos consignados en `sprint.md` (actualización 2026-10-09).  
 **Objetivo:** desbloquear la simulación de la 7199, impedir la propagación de errores del JSON inicial y proporcionar comprobaciones reproducibles para las fases D/E.  
 **Regla:** distinguir *documentado* (esquema/manual), *derivado* (ecuaciones) y *candidato no validado* (modelos de terceros o estimaciones). No se ha inspeccionado el código real del repositorio; esta revisión se basa en el `sprint.md`, el JSON de referencia y los documentos históricos citados.
@@ -127,6 +135,34 @@ Si la realimentación toma el terminal de 16 Ω mientras la carga está en el de
 
 Para el OT real siguen faltando inductancia de magnetización, inductancia de dispersión, capacitancia interbobinado, curva de saturación y sus pérdidas. No asignar cifras ficticias para «sacar sonido» como si fueran documentales; es aceptable conservar el OT ideal provisional y dejar un módulo de caracterización con datos de procedencia.
 
+> **Estado (B18-013, 2026-10-15):** implementado el OT lineal con parámetros
+> **estimados y etiquetados** (overlay `output_transformer.*`: Lm = 28,7 H —
+> esquina LF 25 Hz con la carga reflejada —, Lleak = 12 mH, Cp = 100 pF,
+> R_core = 500 Ω y cota provisional de flujo 0,12 A) en la red diferencial del
+> Newton de placas, con el secundario acoplado al EMF del flujo (bloqueo de
+> continua físico; el paso alto de 1 Hz queda solo en el modo ideal de
+> regresión). Contraste AC contra ngspice + analítica independiente
+> (`assets/fixtures/reference/output_transformer/`): ≤0,091 dB / 0,97° en
+> 20 Hz–20 kHz a la tasa 4×; polaridad y tomas verificadas. **Pendiente:** la
+> curva de saturación/histéresis (B18-014, solo con datos) y la carga reactiva
+> del altavoz (B18-015), prerrequisito de B18-009.
+
+> **Estado (B18-015, 2026-10-15):** la **física de la carga reactiva está
+> cerrada**: `ElectricalLoad` (Resistive fallback + equivalente RLC estimado
+> `Re+Le+Res∥Les∥Ces`, TPT) dentro de la rama reflejada del solve del OT, con
+> corriente de secundario y contraste SPICE
+> (`assets/fixtures/reference/speaker_load/`, < 0,5 dB / < 10° en banda
+> audible). **El lazo con NFB provisional × carga reactiva queda bloqueado:**
+> medido que el lazo (z^-1 + polo 2,5 kHz) pierde todo el margen (ciclo
+> límite ~24 kHz, ~2–5× sobre el límite de ganancia; ninguna compensación
+> provisional tuneada lo hizo robusta). Adoptado: la selección del equivalente
+> estimado **cae a la carga nominal mientras la NFB esté activa** (fallo
+> explícito/documentado, test fijado); el modo reactivo corre con la NFB
+> **abierta** (`present = false`). **B18-009 queda desbloqueado** y debe
+> reabrir la combinación con la red física (capacitancias de válvulas y OT);
+> el archivo de mediciones está en `docs/sprint.md` §21 y
+> `docs/MODEL_ASSUMPTIONS.md`.
+
 ## 6. Etapa 7027A: uso provisional del modelo 6L6GC
 
 `sprint.md` indica que se inicializó con curvas publicadas de una 6L6GC y un punto `360/250/-18 V`, en contraste con las tensiones B-18N de `505/500/-55 V`. Las 7027A están relacionadas con la familia 6L6GC, pero **esa única comprobación del modelo está muy lejos del régimen real**; no demuestra fidelidad de pantalla, corte y transferencia a 500 V.
@@ -138,6 +174,23 @@ Acciones:
 - En cada render de calibración registrar: `Ia_idle`, `Ig2_idle`, `Pa_idle=(Va-Vk)*Ia`, `Pg2_idle=(Vg2-Vk)*Ig2`, y balance entre ramas. No convertir la disipación máxima de placa de la ficha en un objetivo de bias ni fijar una corriente de reposo sin evidencia.
 - Aumentar drive desde voltajes pequeños hasta el umbral de conducción de G1; comprobar continuidad de corrientes, estabilidad de Newton, recuperación del acoplamiento y *blocking distortion*. Mantener el límite de potencia térmica como restricción de plausibilidad, no como sustituto de curvas.
 
+**Estado (2026-10-14, B18-010/011):** **cerrado con datos RCA.** Datasheet RCA
+7027-A (8-59) descargado en `assets/reference/7027A_RCA.pdf` (fuera de git); sus
+páginas 1–3 (tablas) y figuras p05/p07 digitalizadas por
+`scripts/digitize_7027a_curves.py` en `assets/fixtures/reference/power_7027a/`
+(manifiesto con SHA-256) y ajustadas con `scripts/fit_7027a_model.py`. La 7027A
+ya no es proxy: `mu`=9,0 (cota documentada por la conducción en el reposo
+B-18N), `ex`=1,298, `kg1`=1088, `kp`=42,4, `kvb`=38,4 V (errores: familia p05
+mediana 2,9 %, transferencia p07 mediana 9 %; clase A1 Ip +15 %). La corriente
+de pantalla usa la **división calibrada** `Ig2 = Ip·(F + G·e^(−Vp/V0))`
+(B18-011; `F`=0,016, `G`=0,142, `V0`=255 V) con dependencia de placa medida en
+el datasheet. Reposo del modelo: ≈44 mA/tubo, Pd ≈22 W. Test:
+`crates/b18n-dsp/tests/power_7027a_curves.rs`. Netlist SPICE de la etapa de
+potencia (`b18n_power_7027a_1967.cir`) diferido a B18-012/013: sin fuente ni OT
+reales el contraste AC/tran sería contra la propia simplificación; las curvas
+del datasheet son la referencia independiente. La etiqueta del proxy 6L6GC solo
+queda como respaldo legacy de `kg2`.
+
 ## 7. Hito D: fuente dinámica sin inventar un transformer model
 
 **Base documental:** rectificador 5AR4/GZ34, B+ 505 V sin señal, bias aproximado −55 V, filtros mostrados como 40/40/40/30 µF, tensiones y conexiones de fuente según el plano, transformador de potencia PT-109 o PT-12-XA.
@@ -146,6 +199,13 @@ Acciones:
 - Después implementar el rectificador según curva de conducción de la 5AR4 y la impedancia de la alimentación. Un simulador 50/60 Hz con todos los cruces de diodos a 4× puede ser costoso en un VST3; desacoplar la escala lenta del ripple/envolvente, y validar frente al SPICE offline antes de optimizar.
 - No confundir el **diodo 10D6 de bias** con la rectificadora principal 5AR4. No asumir que el bias negativo sigue automáticamente la misma caída dinámica que B+ si los secundarios/circuitos difieren.
 - Los capacitores de 0,05 µF del acoplamiento PI→7027A y los retornos de 100 kΩ producen memoria de bloqueo: pasar de un offset DC superpuesto a un estado de carga dinámico con `Vc(t)`.
+
+> **Estado (B18-012, 2026-10-15):** implementado el **modelo de envolvente**
+> (primer punto): red H2→1k→H1→10k/22k→H3/H4 + bias con `Rrect = 150 Ω` y
+> `Rb = 15 kΩ` (`estimated`), cargas dinámicas de todas las etapas y contraste
+> SPICE (`power_supply/`). Pendiente el segundo punto (curva de conducción de
+> la 5AR4 e impedancia del PT por frecuencia) y la toma exacta del devanado de
+> bias.
 
 ## 8. SPICE independiente: instalarlo en Windows y contrastar topología
 
@@ -214,7 +274,11 @@ El sprint informaba de **94 tests**, DSP funcional y `b18n-render` con latencia 
 | P1 (paralelo) | Crear plugin VST3 | bundle, presets, latencia, validator y host DAW en limpio |
 | P2 | Rectificador, transformer no ideal, cab reactivo/IR | Datos etiquetados por procedencia; mejoras corroboradas por medición |
 
-**Estado de ejecución (2026-10-11):** cerrados P0.1 (errata 270 kΩ/470 kΩ por archivo de errata), P0.2 (150 kΩ con SPICE), P0.3 (reposo 7199 y carga del medidor; véase el estado en la sección 5), P1.4 (inversor 7199 real con `.op` idéntico al golden, `.ac`/`.tran` dentro de tolerancias), P1.5 (tone stack contra ngspice 47), **P1.6** (NFB al cátodo del pentodo con separación explícita `z^-1` + compensación declarada — **2,5 kHz de la tasa base desde la Ola 8**; estabilidad medida a 44,1–192 kHz, cargas 8/16 Ω y drives hasta 4 V; blocking recuperable) y **P1.7** (plugin VST3 en `crates/b18n-plugin`, bundle `target/bundled/B18N 67.vst3`; quedan como pasos manuales el Steinberg Validator y la prueba en DAW). La verificación con impulso de P1.7 corrigió la latencia del sobremuestreo 4× de 93 a **47 muestras** (cada etapa se contaba al doble de su retardo real) y eliminó las asignaciones dinámicas del solver Newton y de `reset()`. La **Ola 8 (Fase 1, CPU)** cerró el presupuesto del plugin: inversor con Newton 3D acoplado y jacobiano analítico (~2-6 evaluaciones Koren/muestra frente a ~5.500 de la bisección anidada), robustez a drive extremo con 0 fallos de congelación a 4 V, guardia de CPU en **23,6 µs/muestra** (bench estéreo 4×, límite declarado 25 µs), niveles de DAW verificados (`daw_levels.rs`) y nivel de instancia por defecto dentro de la escala del host (trim de salida −16,5 dB no histórico). **140 tests en verde**. Mejoras documentadas pendientes: fuente dinámica (Hito D), OT no ideal (P2), interpolador de mayor atenuación y Fase 2 de CPU (opcional).
+**Estado de ejecución (2026-10-11):** cerrados P0.1 (errata 270 kΩ/470 kΩ por archivo de errata), P0.2 (150 kΩ con SPICE), P0.3 (reposo 7199 y carga del medidor; véase el estado en la sección 5), P1.4 (inversor 7199 real con `.op` idéntico al golden, `.ac`/`.tran` dentro de tolerancias), P1.5 (tone stack contra ngspice 47), **P1.6** (NFB al cátodo del pentodo con separación explícita `z^-1` + compensación declarada — **2,5 kHz de la tasa base desde la Ola 8**; estabilidad medida a 44,1–192 kHz, cargas 8/16 Ω y drives hasta 4 V; blocking recuperable) y **P1.7** (plugin VST3 en `crates/b18n-plugin`, bundle `target/bundled/B18N 67.vst3`; quedan como pasos manuales el Steinberg Validator y la prueba en DAW). La verificación con impulso de P1.7 corrigió la latencia del sobremuestreo 4× de 93 a **47 muestras** (cada etapa se contaba al doble de su retardo real) y eliminó las asignaciones dinámicas del solver Newton y de `reset()`.
+
+**Ampliación 2026-10-15 (B18-012/013):** la fuente dinámica (Hito D, B18-012) y el **OT-471 lineal con Lm/fuga/Cp estimados** (B18-013, sección 5) están implementados con contraste SPICE independiente (dos goldens nuevos en `assets/fixtures/reference/`); el modelo usa Euler atrás declarado en los inductores del OT y el test de estrés de alias queda en 0 fallos de solver. **Pendiente P2:** saturación del núcleo (B18-014, solo con datos), carga reactiva del altavoz (B18-015) y, tras ellas, el cierre de la NFB sobre red real (B18-009).
+
+La **Ola 8 (Fase 1, CPU)** cerró el presupuesto del plugin: inversor con Newton 3D acoplado y jacobiano analítico (~2-6 evaluaciones Koren/muestra frente a ~5.500 de la bisección anidada), robustez a drive extremo con 0 fallos de congelación a 4 V, guardia de CPU en **23,6 µs/muestra** (bench estéreo 4×, límite declarado 25 µs), niveles de DAW verificados (`daw_levels.rs`) y nivel de instancia por defecto dentro de la escala del host (trim de salida −16,5 dB no histórico). **140 tests en verde**. Mejoras documentadas pendientes: fuente dinámica (Hito D, hecha en B18-012), OT no ideal (hecho en B18-013; falta la saturación B18-014), interpolador de mayor atenuación y Fase 2 de CPU (opcional).
 
 **No hacer:** corregir la supuesta «7199 inconsistente» con voltajes DC inventados; retocar el tone stack para que coincida con reediciones ajenas; pasar valores de ajuste no documentados al JSON histórico; calibrar la curva de saturación del OT a oído como si fuera original; bloquear la entrega del primer VST3 por no disponer aún de un gabinete medido.
 

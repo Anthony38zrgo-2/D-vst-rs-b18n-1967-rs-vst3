@@ -124,7 +124,9 @@ exponencial), no una grabación; véase `assets/fixtures/signals/README.md`.
    moderna; no hay IR ni curva de impedancia medidas (B18-016).
 3. **NFB:** separación explícita `z^-1` y polo de compensación declarado en 2,5 kHz; el
    estado del polo respecto al factor de sobremuestreo se corrige en B18-002.
-4. **7027A:** parámetros Koren de la 6LGC publicada; sin fit directo al 7027-A (B18-010/011).
+4. **7027A:** ajustada al datasheet RCA 7027-A (B18-010/011, 2026-10-14) con
+   curvas digitalizadas + tablas; sigue sin medición hardware del espécimen y
+   la joroba de Ig2 por debajo de ~140 V queda documentada (B18-012).
 5. **Fuente:** B+/pantallas/bias rígidos; sin 5AR4, filtrado ni sag dinámicos (B18-012).
 6. **Niveles:** `1.0` de muestra = 1,0 Vp y trim de salida −16,5 dB son convenciones
    modernas, no datos Ampeg (B18-017).
@@ -194,3 +196,14 @@ resolverse antes de comparar respuestas: indica cambio de modelo o de errata.
   ≤0,0002 % / ≤0,05° (20 Hz–20 kHz) y transitorio al 0,03 %. `ALGORITHM_VERSION` →
   `…-preamp-loading-7199-coupled-speaker-v1`; render E2E nuevo: pico 4,8155, RMS 1,4433,
   offset +0,0029. Detalle en `CHANGELOG.md`.
+- **B18-010/011 (2026-10-14, rama `feat/7027a-datasheet-fit`, cambio audible):**
+  la 7027A deja de ser proxy 6L6GC: modelo Koren ajustado a las curvas
+  digitalizadas del datasheet RCA 7027-A (8-59) y a sus tablas (familia p05
+  mediana 2,9 %, transferencia p07 mediana 9 %; clase A1 Ip +15 %), con la
+  división de pantalla `Ig2 = Ip·(F + G·e^(−Vp/V0))` calibrada contra Vp
+  (B18-011; p07 Ig2 mediana 7,8 %). Fixture nuevo
+  `power_7027a/7027a_rca_digitized.csv` (315 puntos, manifiesto). Test nuevo
+  `power_7027a_curves.rs`. `ALGORITHM_VERSION` →
+  `…-7199-coupled-speaker-7027a-datasheet-v1`; render E2E nuevo: pico 4,8224,
+  RMS 1,4463, latencia 47 (sin cambio); CPU ≈25,2 µs/muestra (guardia 28, sin
+  cambio). Detalle en `CHANGELOG.md`.

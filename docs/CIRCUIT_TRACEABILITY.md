@@ -133,6 +133,13 @@ pentodo, pin 8 cátodo del triodo, pin 9 rejilla del triodo.
 
 ### Realimentación negativa (NFB)
 
+**Actualización B18-009, 2026-10-16:** la referencia exploratoria de sprint
+§22 no demuestra estabilidad del circuito continuo. La referencia corregida
+en `scripts/spice/nfb_coupled_reference.py` usa la convención de secundario
+del motor y el equivalente diferencial de B18-013. Márgenes y transitorios
+independientes fallan; el candidato conjunto no se integra. Véase
+[`B18_009_STATUS.md`](B18_009_STATUS.md). Se conservan `z^-1` y LP provisional.
+
 - `JSON-1967` registra **22 kΩ** desde el secundario. El esquema `SCH-567` muestra la
   **22 kΩ desde la toma de 16 Ω (GREEN)** y un flag «F» en el nodo del cátodo del
   pentodo (bajada de la 1.5 kΩ); la nota de aplicación **RCA AN-183** confirma la
@@ -159,19 +166,42 @@ pentodo, pin 8 cátodo del triodo, pin 9 rejilla del triodo.
 - Acoplo inversor→rejilla **0.05 µF**.
 - Cátodos a masa (bias fija). `plate_current_idle_a_each` sigue **null**: no inventarlo.
 
-> **Modelo implementado (Hito C, parte 2):** OT ideal con toma central y DCR
-> (`vp1+vp2 = 2B − Rh(ip1+ip2)`, `vp1−vp2 = −(Rh+Raa/2)(ip1−ip2)`), pentodos Koren
-> con corriente de pantalla y conducción de rejilla suave. Parámetros de la 7027A
-> tomados de la **6L6GC publicada** (tubo padre; procedencia en la calibración).
-> B+/pantallas rígidas y bloqueo real del acoplo: Hito D. El reposo del modelo se
-> registra en el estado del motor y no se compara con una medición porque el JSON
-> no la aporta.
+> **Modelo implementado (Hito C, parte 2; recalibrado en B18-010/011):** OT ideal
+> con toma central y DCR (`vp1+vp2 = 2B − Rh(ip1+ip2)`, `vp1−vp2 = −(Rh+Raa/2)(ip1−ip2)`),
+> pentodos Koren con corriente de pantalla y conducción de rejilla suave. Los
+> parámetros de la 7027A se ajustan al **datasheet RCA 7027-A (8-59)** (curvas
+> digitalizadas en `assets/fixtures/reference/power_7027a/` + tablas; scripts
+> `digitize_7027a_curves.py` y `fit_7027a_model.py`) e incluyen la **división de
+> pantalla** `Ig2 = Ip·(F + G·e^(−Vp/V0))` calibrada contra Vp (B18-011).
+> B18-012 resuelto (2026-10-15): rieles dinámicos con la red de arriba; el
+> reposo convergido (B+ 505, H1 495, H3 472, H4 394 V) se registra en el estado
+> del motor y se contrasta contra SPICE (`power_supply/`), no contra una
+> medición (el JSON no la aporta).
 
 ### Transformador de salida y altavoz
 
 - **OT-471:** primario 4300 Ω placa-placa; secundarios **16 Ω (GREEN)**, **8 Ω (YELLOW)**,
   común **BLACK**; tomas de NFB según arriba.
-- Salida a jack de altavoz y **EXT. SPKR.**; altavoz **8 Ω**.
+- **Modelo (B18-013):** `stages/output_transformer.rs` con `Ideal` (Hito C, solo
+  regresión/fallback) y `Linear`: red diferencial
+  `2·Rh + R_core + (Lm ∥ (Lleak + N²·(Rcarga+DCR_sec))) ∥ Cp` resuelta en el
+  Newton de placas (`PushPullStage::solve_plates`) con el secundario acoplado
+  al EMF del flujo (nodo interno F). Parámetros `estimated` desde el overlay
+  (`output_transformer.*`, método y fecha en la calibración): `Lm = 28,7 H`
+  (corte 25 Hz), `Lleak = 12 mH` (agudos ≈64 kHz), `Cp = 100 pF`,
+  `R_core = 500 Ω` (pérdidas de flujo; τ ≈ 57 ms) y cota provisional de flujo
+  0,12 A (placeholder de saturación, B18-014). Integración Euler atrás
+  (inductores) y TPT (capacidad); desviación medida contra SPICE ≤0,091 dB /
+  0,97° en la banda audible. Golden:
+  `assets/fixtures/reference/output_transformer/ot471_linear_spice.csv`
+  (netlist `scripts/spice/b18n_ot471_linear.cir`, validado contra analítica
+  independiente) y test `crates/b18n-dsp/tests/output_transformer_ac.rs`.
+- Salida a jack de altavoz y **EXT. SPKR.**; altavoz **8 Ω** (carga nominal,
+  fallback declarado). **B18-015 implementó la carga reactiva opcional**
+  (`ElectricalLoad`: RLC estimado `Re+Le+Res∥Les∥Ces` dentro del solve del
+  OT, contraste SPICE en `assets/fixtures/reference/speaker_load/`;
+  fallback resistivo sin overlay o con la NFB provisional activa — bloqueo
+  del lazo estimado, archivado en `sprint.md` §21).
 - Sin IR ni curva de impedancia medidas (`null`).
 
 ### Fuente de alimentación
@@ -181,6 +211,15 @@ pentodo, pin 8 cátodo del triodo, pin 9 rejilla del triodo.
 - Red de caída visible: **1 kΩ 10 W**, **10 kΩ 1 W**, **22 kΩ 1 W**.
 - **Bias:** rectificador **10D6**, **100 µF/100 V**, **47 kΩ**, **56 kΩ**, ajuste de hum
   **100 Ω/2 W**; línea de **−55 V** a las rejillas de salida.
+- **Topología B18-012 (trazada del raster SCH-567, 2026-10-15; Hipótesis A,
+  `estimated`):** H2 [30 µF/600 V, salida del rectificador y CT RED del OT] →
+  1k → H1 [40 µF/500 V, pantallas 7027A] → 10k → H3 [40 µF, carril del triodo
+  inversor ~460 V] y 22k → H4 [40 µF, carril del previo ~380 V]. El 30 µF/600 V
+  está del lado del rectificador (mayor tensión) y los tres 40 µF/500 V aguas
+  abajo; las dos líneas de previo confluyen al bus vertical de la zona 7199
+  (recortes `extracted/psu_zoom_*.png`, gitignored). Netlist SPICE
+  `scripts/spice/b18n_power_supply_1967.cir` con goldens en
+  `assets/fixtures/reference/power_supply/`.
 
 ## Diferencias entre el JSON y el esquema
 

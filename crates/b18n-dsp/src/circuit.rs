@@ -7,6 +7,8 @@
 
 use std::collections::BTreeMap;
 
+use crate::stages::speaker_impedance::LumpedSpeakerParameters;
+
 /// Circuito completo tal como lo consume el motor DSP.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CircuitDefinition {
@@ -32,6 +34,8 @@ pub struct CircuitDefinition {
 /// `datasheet`. `None` = sin modelo (el motor debe fallar explícitamente).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct TubeModelValues {
+    /// Interelectrode capacitances from the RCA sheets, never inferred from tone.
+    pub capacitances: Option<TubeCapacitances>,
     pub koren_6sl7: Option<KorenTriodeParameters>,
     /// Pentodo de potencia 7027A (modelo Koren con corriente de pantalla).
     pub koren_7027a: Option<KorenPentodeParameters>,
@@ -41,6 +45,22 @@ pub struct TubeModelValues {
     pub koren_7199_triode: Option<KorenTriodeParameters>,
     /// Alimentación del previo (nodo de las placas 470 kΩ/220 kΩ).
     pub preamp_supply_v: Option<f64>,
+}
+
+/// Grid-plate, grid-cathode and plate-cathode capacitances in farads.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ElectrodeCapacitances {
+    pub gp: f64,
+    pub gk: f64,
+    pub pk: f64,
+}
+
+/// RCA 7199 (7-63) and RCA 7027-A (8-59); excludes wiring/socket capacitance.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TubeCapacitances {
+    pub pentode_7199: ElectrodeCapacitances,
+    pub triode_7199: ElectrodeCapacitances,
+    pub power_7027a: ElectrodeCapacitances,
 }
 
 /// Parámetros del modelo Koren de un pentodo/beam tetrode.
@@ -56,6 +76,12 @@ pub struct KorenPentodeParameters {
     pub kp: f64,
     pub kvb: f64,
     pub vct: f64,
+    /// División de pantalla calibrada (B18-011): `Ig2 = Ip·(F + G·e^(−Vp/V0))`.
+    /// Con `screen_ratio_floor == 0` se conserva la forma Koren publicada
+    /// (`base^Ex/Kg2`, p. ej. el 7199 y la 6L6GC de respaldo).
+    pub screen_ratio_floor: f64,
+    pub screen_ratio_boost: f64,
+    pub screen_ratio_volts: f64,
     pub grid_conduction_threshold_v: f64,
     pub grid_conduction_resistance_ohms: f64,
 }
@@ -209,6 +235,13 @@ pub struct OutputTransformerValues {
     pub winding_inductance_h: Option<f64>,
     pub leakage_inductance_h: Option<f64>,
     pub parasitic_capacitance_f: Option<f64>,
+    /// Resistencia equivalente de pérdidas del camino de flujo (B18-013,
+    /// `estimated`): amortigua/acota la deriva de continua del integrador de
+    /// flujo mientras el núcleo no tiene modelo magnético no lineal (B18-014).
+    pub core_loss_ohms: Option<f64>,
+    /// Cota provisional de la corriente de magnetización (B18-013, `estimated`):
+    /// limitador numérico del flujo hasta el modelo de núcleo (B18-014).
+    pub magnetizing_current_limit_a: Option<f64>,
     pub negative_feedback: NegativeFeedbackValues,
 }
 
@@ -236,6 +269,13 @@ pub struct PowerSupplyValues {
     pub bias_filter_voltage_rating_v: f64,
     pub rectifier_diode_bias: String,
     pub dropping_resistor_values_ohms: Vec<f64>,
+    /// Modelo dinámico B18-012 (overlay `supply.*`, `estimated`): resistencia
+    /// serie equivalente del rectificador 5AR4 + cobre del PT (sin curva de
+    /// conducción ni DCR documentadas). `None` = sin modelo dinámico.
+    pub rectifier_series_ohms: Option<f64>,
+    /// Modelo dinámico B18-012: resistencia serie equivalente de la fuente de
+    /// bias (−55 V, 10D6 + 100 µF). `None` = bias rígido.
+    pub bias_series_ohms: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -245,6 +285,10 @@ pub struct SpeakerValues {
     pub cabinet_type: String,
     pub impedance_curve_available: bool,
     pub measured_ir_available: bool,
+    /// Equivalente RLC **estimado** del altavoz (B18-015, overlay
+    /// `speaker.reactive_load.*` con método y fecha). `None` = sin datos: el
+    /// motor usa la resistencia nominal como fallback declarado.
+    pub lumped_equivalent: Option<LumpedSpeakerParameters>,
 }
 
 /// Nivel de fidelidad de la caracterización (véase `MODEL_ASSUMPTIONS.md`).
@@ -389,9 +433,13 @@ pub(crate) fn test_circuit() -> CircuitDefinition {
             dc_secondary_16ohm_winding_ohms: 0.7,
             turns_ratio_primary_to_8ohm: 23.18,
             turns_ratio_primary_to_16ohm: 16.39,
-            winding_inductance_h: None,
-            leakage_inductance_h: None,
-            parasitic_capacitance_f: None,
+            // Parásitos estimados del OT-471 (B18-013); espejo de
+            // `assets/models/b18n_1967_calibration.json` (método y fecha allí).
+            winding_inductance_h: Some(28.7),
+            leakage_inductance_h: Some(0.012),
+            parasitic_capacitance_f: Some(1e-10),
+            core_loss_ohms: Some(500.0),
+            magnetizing_current_limit_a: Some(0.12),
             negative_feedback: NegativeFeedbackValues {
                 present: true,
                 resistor_from_secondary_ohms_visible: 22_000.0,
@@ -413,6 +461,8 @@ pub(crate) fn test_circuit() -> CircuitDefinition {
             bias_filter_voltage_rating_v: 100.0,
             rectifier_diode_bias: "10D6".to_owned(),
             dropping_resistor_values_ohms: vec![1_000.0, 10_000.0, 22_000.0],
+            rectifier_series_ohms: Some(150.0),
+            bias_series_ohms: Some(15_000.0),
         },
         speaker: SpeakerValues {
             nominal_diameter_inches: 18.0,
@@ -420,8 +470,33 @@ pub(crate) fn test_circuit() -> CircuitDefinition {
             cabinet_type: "Portaflex double-baffle; slotted ports".to_owned(),
             impedance_curve_available: false,
             measured_ir_available: false,
+            // Espejo del overlay `speaker.reactive_load.*` (estimated, B18-015).
+            lumped_equivalent: Some(LumpedSpeakerParameters {
+                voice_coil_resistance_ohms: 6.5,
+                voice_coil_inductance_h: 0.0008,
+                motional_resistance_ohms: 23.5,
+                motional_inductance_h: 0.0693,
+                motional_capacitance_farads: 1.806e-4,
+            }),
         },
         tube_models: TubeModelValues {
+            capacitances: Some(TubeCapacitances {
+                pentode_7199: ElectrodeCapacitances {
+                    gp: 0.06e-12,
+                    gk: 5e-12,
+                    pk: 2e-12,
+                },
+                triode_7199: ElectrodeCapacitances {
+                    gp: 2e-12,
+                    gk: 2.3e-12,
+                    pk: 0.3e-12,
+                },
+                power_7027a: ElectrodeCapacitances {
+                    gp: 1.5e-12,
+                    gk: 10e-12,
+                    pk: 7.5e-12,
+                },
+            }),
             koren_6sl7: Some(KorenTriodeParameters {
                 mu: 66.0811,
                 ex: 1.098449,
@@ -433,14 +508,17 @@ pub(crate) fn test_circuit() -> CircuitDefinition {
                 grid_conduction_resistance_ohms: 1_000.0,
             }),
             koren_7027a: Some(KorenPentodeParameters {
-                // Parámetros publicados de la 6L6GC (tubo padre de la 7027A).
-                mu: 8.7,
-                ex: 1.35,
-                kg1: 1460.0,
-                kg2: 4500.0,
-                kp: 48.0,
-                kvb: 12.0,
+                // Ajuste al datasheet RCA 7027-A (scripts/fit_7027a_model.py).
+                mu: 9.0,
+                ex: 1.298_317,
+                kg1: 1_087.896_529,
+                kg2: 4_500.0,
+                kp: 42.405_486,
+                kvb: 38.352_094,
                 vct: 0.0,
+                screen_ratio_floor: 0.015_971,
+                screen_ratio_boost: 0.142_476,
+                screen_ratio_volts: 255.305,
                 grid_conduction_threshold_v: 0.0,
                 grid_conduction_resistance_ohms: 500.0,
             }),
@@ -453,6 +531,9 @@ pub(crate) fn test_circuit() -> CircuitDefinition {
                 kp: 66.513_832,
                 kvb: 12.522_225,
                 vct: 0.0,
+                screen_ratio_floor: 0.0,
+                screen_ratio_boost: 0.0,
+                screen_ratio_volts: 50.0,
                 grid_conduction_threshold_v: 0.0,
                 grid_conduction_resistance_ohms: 500.0,
             }),

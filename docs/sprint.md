@@ -629,3 +629,439 @@ Fecha de última actualización: 2026-10-11.
 - P2 (fuente dinámica, OT no ideal, gabinete/reactivo-IR) y mejoras
   documentadas; Fase 2 de CPU opcional (si el presupuesto tiene que bajar
   más, atacar el coste por evaluación Koren sin cambiar el modelo audible).
+
+## 18. Ola B18 segunda — 7027A desde el datasheet RCA (B18-010/011, completada)
+
+### 18.1 Contexto y diagnóstico
+
+- La etapa de potencia seguía usando los parámetros Koren publicados de la
+  **6L6GC** (proxy documentado, `validated_at_7027a_operating_region=false`),
+  lejos del régimen real del B-18N (B+ 505 V, pantallas ~500 V, bias −55 V).
+- Datasheet RCA 7027-A (8-59, DATA 1/2) descargado en
+  `assets/reference/7027A_RCA.pdf` (fuera de git). Contenido útil: tablas
+  (clase A1, bias fija por tubo, máximos), familia de placa a Vg1 = 0 con
+  **Ec2 como parámetro** (p05, Ec2 = 50…450 V), familia Ip/Ig2 a Ec2 = 300 V
+  (p06) y transferencia Ip/Ig2 a Vp = 300 V (p07).
+
+### 18.2 Ejecutado
+
+- **Digitalización reproducible** (`scripts/digitize_7027a_curves.py`): calibración
+  de ejes por las etiquetas impresas y la rejilla (p05: 10 V × 10 mA por celda;
+  p07: 1 V en x), eliminación de la rejilla con líneas refinadas localmente y
+  seguimiento de trazos con coasting y fusión de fragmentos. La identidad de las
+  curvas se ancla con dos comprobaciones cruzadas: p05 Ec2=300 en Vp=300 ≈ 247 mA
+  frente a p07 Ip(Vg1=0) ≈ 250 mA. p06 no se digitaliza en automático (curvas
+  entrelazadas); solo una curva de Ig2 sin etiqueta guiada por anclas para la
+  forma Ig2(Vp). Fixture: `assets/fixtures/reference/power_7027a/7027a_rca_digitized.csv`
+  (315 puntos) con README y SHA-256 en el manifiesto.
+- **Ajuste** (`scripts/fit_7027a_model.py`, etapa 1 placa + etapa 2 división de
+  pantalla): cota `mu <= 9.0` derivada del reposo documentado del B-18N (pantalla
+  ~500 V, bias −55 V → `Vs/µ > 55`); sin esa cota el ajuste elegía `mu` ≈ 10,2 y
+  dejaba la válvula en corte al reposo del Ampeg. Valores en la calibración con
+  método/fecha/origen; el `Max.-Signal Grid-No.2 Current` de la tabla se trató
+  como media de ciclo (no puntual) y no entra en el ajuste.
+- **División de pantalla calibrada (B18-011):** `Ig2 = Ip·(F + G·e^(−Vp/V0))`;
+  la forma Koren de un exponente no concilia tabla (ex≈0,8) y curva (ex≈1,9);
+  la división sí (p07 Ig2 mediana 7,8 %). API: `screen_current(plate_v, screen_v,
+  grid_v)`, `screen_current_with_slopes()` y `d_screen_d_plate` en
+  `PentodeCurrents`; el 7199 conserva la forma publicada (floor = 0) y su Newton
+  no cambia.
+- **Test nuevo:** `crates/b18n-dsp/tests/power_7027a_curves.rs` (6 tests: p05,
+  p07 Ip/Ig2, forma p06, anclas tabuladas, reposo del par con límites RCA).
+
+### 18.3 Verificación
+
+- 178 tests en verde (config 28, dsp 106 + 6 de curvas 7027A, plugin 18 + 3
+  ignorados, render 6, doc-tests). `cargo fmt --check`, `clippy -D warnings`,
+  `test --workspace`, `build --release`: limpios.
+- Render E2E: pico 4,8155 → 4,8224, RMS 1,4433 → 1,4463, latencia 47 (sin
+  cambio); `ALGORITHM_VERSION` →
+  `…-7199-coupled-speaker-7027a-datasheet-v1`.
+- Bench de CPU (release): ≈25,2 µs/muestra, guardia 28 µs (sin cambio).
+- Bundle regenerado tras el cambio de versión.
+
+### 18.4 Residuales y siguiente
+
+- Netlist SPICE de la etapa de potencia diferido a B18-012/013 (con fuente y OT
+  reales el contraste sería contra la propia simplificación; las curvas del
+  datasheet ya son la referencia independiente).
+- Ig2 con la forma exponencial: joroba por debajo de ~140 V no capturada
+  (documentada; no opera la etapa ahí más que transitoriamente).
+- Siguiente ticket: B18-012 (fuente dinámica 5AR4 + sag, Hito D).
+
+## 19. B18-012 — fuente dinámica 5AR4 + sag (Hito D, completada)
+
+### 19.1 Topología trazada
+
+- Recortes `extracted/psu_zoom_*.png` (gitignored) desde el raster 2900×1400:
+  H2 [30 µF/600 V, rectificador/CT RED] → 1k/10W → H1 [40 µF/500 V, pantallas
+  7027A] → 10k → H3 [40 µF, triodo ~460 V] y 22k → H4 [40 µF, previo ~380 V];
+  bias 10D6 + 100 µF → −55 V a los retornos de 100 kΩ. Hipótesis A (10k→triodo,
+  22k→previo), `estimated`: el JSON solo lista valores sin orden ni nodos.
+- Sin curva 5AR4 ni DCR del PT en la documentación (unknowns del JSON):
+  rectificador como Thevenin promedio (`Rrect = 150 Ω`, `estimated`,
+  `supply.rectifier.series_ohms`; `Vsrc` calibrada a B+ 505 V con el reposo) y
+  bias con `Rb = 15 kΩ` (`supply.bias.series_ohms`).
+
+### 19.2 Ejecutado
+
+- `stages/power_supply.rs`: 4 nodos HV + bias con Euler implícito por muestra
+  (4×4 con pivote + bias 1D), sin asignaciones; `from_circuit` (mapeo
+  `[H2,H1,H3,H4]=[30,40,40,40] µF`, caídas por valor), `dc_solution`,
+  `advance`, `reset` al reposo DC, `capacitor_energy_j`.
+- Cableado en `engine.rs`: punto fijo rieles↔reposos en 20 iteradas al
+  inicializar (silencio sin transitorio); por muestra: rieles previos →
+  `set_rails` en 7027A/inversor/6SL7 → procesado → `current_load` (CT,
+  pantallas, triodo por 47 kΩ, previo por Ra/270 kΩ/470 kΩ, bias por
+  `(Vbias−Vg)/100k`) → `advance`. `B18nEngine::supply_rails()` para diagnóstico.
+- Config: `PowerSupplyValues.rectifier_series_ohms/bias_series_ohms`
+  (`None` en el mapeo, `Some` desde el overlay `supply.*`); calibración con
+  método/fecha; `test_circuit()` con los mismos valores.
+- SPICE: `scripts/spice/b18n_power_supply_1967.cir` + generador
+  `power_supply_reference.py` (DC + tran con escalón +20 mA); goldens en
+  `assets/fixtures/reference/power_supply/` (DC 505,0/495,1/472,1/393,9/−55,0 V;
+  sag 2,91 V) con README y manifiesto (v1, 2 entradas nuevas).
+- Tests: `crates/b18n-dsp/tests/power_supply_transient.rs` (9 tests).
+  Reposo convergido: B+ 505, H1 495, H3 472, H4 394 V; CT 83 mA, pantallas
+  3 mA, triodo 2,3 mA, previo 4,6 mA.
+
+### 19.3 Verificación
+
+- `cargo fmt`, `clippy -D warnings`, `test --workspace` (debug) y release
+  (`b18n-dsp`, `b18n-config`, `b18n-plugin`): verdes. 101 lib + 9 fuente.
+- Render E2E (bajo 82,41 Hz/0,5 s): pico 4,8224 → 4,7902, RMS 1,4463 → 1,4370,
+  latencia 47; `ALGORITHM_VERSION` → `…-7027a-datasheet-supply-v1`.
+- Bench CPU release (estéreo 4×): ≈27–29,5 µs/muestra (antes ≈25,2);
+  guardia 28 → **32 µs** con la justificación en el test.
+- Netlist de potencia 7027A/OT sigue diferido a B18-013 (con la fuente ya
+  dinámica, el siguiente paso es el OT-471 lineal unificado).
+
+### 19.4 Residuales
+
+- Curva real 5AR4/GZ34 y DCR del PT sin documentar: el sag es el de la red RC
+  con fuente media, no el de la válvula rectificadora (declarado).
+- Toma exacta del devanado de bias pendiente de traza fina (el 6,3 V no puede
+  dar −55 V; el PIV 600 V del 10D6 apunta al HV).
+- `z^-1` de una muestra en la fuente (cuantificado <0,05 V a 100 Hz); el
+  `z^-1` de la NFB sigue pendiente (B18-009, tras B18-013/015).
+
+## 20. B18-013 — OT-471 lineal con pérdidas y parásitos (completada, 2026-10-15)
+
+### 20.1 Modelo unificado (una sola implementación activa)
+
+- `stages/output_transformer.rs` pasa a `OutputTransformerModel` con topología
+  configurable; `Ideal` se conserva como regresión/fallback explícito. La
+  conversión estática que vivía en `PushPullStage::solve_plates()` se sustituye
+  por la **red diferencial** en el mismo Newton (suma del CT + diferencia del
+  OT): `Vp1−Vp2 = −[2·Rh + R_core + (Lm ∥ (Lleak + N²·(Rcarga+DCR_sec))) ∥ Cp]·id`.
+  El secundario se acopla a la tensión del nodo interno F (EMF del flujo), de
+  modo que la continua no se transfiere y el paso alto artificial de 1 Hz del
+  modo ideal desaparece en el lineal.
+- Parámetros `estimated` del overlay (método y fecha en la calibración):
+  `Lm = 28,7 H` (esquina LF 25 Hz con la carga reflejada), `Lleak = 12 mH`
+  (esquina de agudos ≈64 kHz), `Cp = 100 pF` (resonancia ≈145 kHz),
+  `R_core = 500 Ω` (pérdidas del camino de flujo: relaja el integrador de flujo,
+  τ ≈ 57 ms, < 0,1 dB en la esquina) y **cota provisional de flujo 0,12 A**
+  (1,3× la corriente de magnetización de pico a plena potencia a 40 Hz):
+  limitador numérico declarado como placeholder de saturación hasta B18-014.
+- Integración: **Euler atrás** en Lm y Lleak (memoria acotada; robustez del
+  solve) y TPT en Cp. Sin el limitador y con trapezoidal, el arranque del test
+  de alias a 2 V/7,3 kHz arrastraba el flujo hasta estados infactibles (flujo
+  sin fuerza restauradora). El rango de placas pasa a `[−2·B, 3·B]` (flyback) y
+  el solve acepta residuo < 1 mV (≈ −100 dB) con 200 iteraciones y paso ≤ 80 V.
+
+### 20.2 Ejecutado
+
+- `numerics/discretization.rs`: `TptInductor` (TPT y Euler atrás, con tests
+  analíticos de escalón RL y retención de corriente).
+- `power_7027a.rs`: `PowerStageConfig.transformer` (`OutputTransformerConfig`),
+  `solve_plates` con `differential_drop(id)` (afín, sin mutar estado),
+  `publish_plate_solution` y `magnetizing_current_a()` de diagnóstico.
+- `engine.rs`: construye el OT desde el circuito; error explícito
+  `InvalidTransformerModel` si los parásitos llegan a medias (no se degrada en
+  silencio). `calibration.rs` aplica `output_transformer.*` desde el overlay.
+- SPICE: `scripts/spice/b18n_ot471_linear.cir` + `output_transformer_reference.py`
+  (AC con Rs = 45 kΩ = 2·rp del datasheet; el generador valida el netlist contra
+  una implementación analítica independiente, desviación < 1e-3). Golden
+  `assets/fixtures/reference/output_transformer/ot471_linear_spice.csv`
+  (93 frecuencias) con README y manifiesto.
+- Test nuevo `crates/b18n-dsp/tests/output_transformer_ac.rs`: contraste de
+  magnitud y fase con el golden a la tasa 4× (medido: peor desviación
+  **0,091 dB / 0,97°** en 20 Hz–20 kHz), esquina LF contra el golden y
+  polaridad (id positivo → vsec negativo).
+
+### 20.3 Verificación
+
+- `cargo fmt --check`, `clippy --workspace --all-targets -- -D warnings`,
+  `test --workspace` (debug y release) y `build --release`: limpios.
+- El test de estrés de alias (2 V/7,3 kHz, 4×) pasa de **121.364 fallos** del
+  primer prototipo a **0 fallos** 1×/2×/4× con el modelo final; cota absoluta
+  de 1× re-basada a ≤ −12 dBc (medido −13,5; 4× medido −33,5).
+- Render E2E: pico 4,7902 → **4,9170**, RMS 1,4370 → **1,4761**, offset
+  +0,0029 → **+0,0016**, latencia 47 (sin cambio); `ALGORITHM_VERSION` →
+  `…-supply-ot471-linear-v1`.
+- CPU (release, estéreo 4×): **≈27,2 µs/muestra** (guardia 32 µs sin cambio).
+
+### 20.4 Residuales y siguiente
+
+- La saturación/histéresis del núcleo (B18-014) sigue diferida: la cota de
+  flujo es un limitador declarado, no una curva magnética; `R_core` es una
+  resistencia equivalente estimada de pérdidas.
+- Euler atrás en los inductores desvía la fase HF de forma declarada (medida
+  contra SPICE en banda audible: < 0,1 dB / 1°; la esquina de 64 kHz queda
+  fuera de banda).
+- Siguiente recomendado: **B18-015** (carga reactiva del altavoz) y después
+  **B18-009** (NFB sobre red real, sin `z^-1`/LP) con 013 y 015 cerrados.
+
+## 21. B18-015 - carga reactiva del altavoz de 18" en el solve del OT (física cerrada; lazo estimado+NFB bloqueado, 2026-10-15)
+
+### 21.1 Implementación
+
+- **Nueva etapa `stages/speaker_impedance.rs`:** `ElectricalLoadConfig`
+  (`Resistive { ohms }` = fallback declarado; `LumpedEquivalent(params)`), el
+  estado discretizado `ElectricalLoad` (puerto Norton `i = G·v + Ieq`) y la
+  referencia continua `impedance_at_hertz(f)`. Red RLC:
+  `Re + Le + (Res ∥ Les ∥ Ces)` con parámetros `estimated` en el overlay
+  (`speaker.reactive_load.*`, los cinco juntos o error explícito en
+  `calibration.rs`). Anclas: Re=6.5 Ω, Le=0.8 mH, fs=45 Hz, Q=1,2, pico
+  |Z|=30 Ω, |Z|(200 Hz)≈8,2 Ω, |Z|(1 kHz)≈7,7 Ω, |Z|(20 kHz)≈100 Ω. **No
+  medido** del Cleveland (regla: sin invención de Z(f), fallback resistivo).
+- **OT-471 (B18-013) generalizado:** `OutputTransformerConfig.load` sustituye
+  `load_ohms`; la rama reflejada usa el puerto de carga (DCR de secundario en
+  serie, reflejo `G_eff/N²`, fuente Norton reflejada `I_ref = −I_eff/N8`,
+  combinación en serie con Lleak por conductancias). El `advance()` resuelve
+  el EMF del flujo y publica la tensión de terminal **y la corriente
+  secundaria** del mismo paso; `set_load()` cambia la carga en caliente (la
+  red de carga nace descargada; los estados de OT persisten). El modo ideal
+  usa `load.nominal_ohms()` (a continua: Re).
+- **Selección:** `RuntimeControls::speaker_load`
+  (`NominalResistance`|`EstimatedLumped`), resuelta en `set_targets`
+  (fallback a la resistiva si el overlay no trae parámetros o la **NFB
+  provisional está activa** — véase 21.2; `effective_speaker_load()`
+  diagnostica el modo efectivo). Plugin: parámetro nuevo `load_model` en
+  Advanced, ID `nominal`/`rlc_estimated` (IDs congelados verificados: 13);
+  render: `--load resistive|lumped` + `SettingsReport.load`.
+- **SPICE:** `scripts/spice/b18n_speaker_load.cir` +
+  `speaker_load_reference.py` (comprobación analítica numpy, desviación
+  < 1e-3) → golden `assets/fixtures/reference/speaker_load/speaker_load_spice.csv`
+  (93 filas, manifiesto con SHA-256 `e8d041b5…664`).
+- Discretización de la carga: **TPT/trapezoidal** en toda la red (inductores y
+  condensador). Euler atrás desviaba ≈1,8 dB a 20 kHz frente al golden (la
+  carga es inductiva y con camino resistivo, a diferencia del integrador de
+  flujo del OT); TPT la deja en banda: < 0,5 dB / < 10° (test
+  `magnitude_and_phase_match_spice_in_the_audio_band`).
+
+### 21.2 Problema encontrado: lazo de NFB provisional × carga reactiva
+
+Archivo (todo medido en la sesión de B18-015):
+
+- **La etapa de potencia sola es estable** con la carga RLC (0 fallos a
+  drives 0,5–40 V, incluso con cambio en caliente tras resolver el reposo con
+  la resistiva) y **el motor con `present = false` también** (todos los
+  drives/tasas). El conflicto es exactamente **NFB provisional + carga
+  reactiva**.
+- Manifestación: con NFB activa, cualquier entrada mínima engancha un
+  **ciclo límite** (sin entrada, reposo exacto): la salida cae a un tren
+  saturado (~6 V constante a drive 0,005; 44–106 V a drives mayores,
+  alternancia de signo cada 1-2 muestras de host ⇒ ~24 kHz) con cascada de
+  fallos de Newton (inversor+potencia, ~50 % de llamadas). Es mapeable a
+  ganancia de lazo de ≈2–5× sobre el límite al cruzar el lazo en HF.
+- Causa estructural (medida, no hipótesis): la carga inductiva **anula el
+  roll-off de fuga del OT** (vsec/v_F ≈ N·Le/(Lleak+N²·Le), constante en HF)
+  y sube la ganancia de lazo hacia 24 kHz que la compensación provisional
+  (un polo a 2,5 kHz + `z^-1`) no cubre. Barrido de ganancia de lazo
+  escalando `N16`: estable solo con ≈1/5 de la ganancia nominal de lazo
+  (ratio cerrado/abierta 0,72→0,83 hacia 1; con la nominal: >30).
+- Intentos de compensación provisional (todos medidos, todos insuficientes):
+  polo único a 500 Hz (a drive pequeño ok, implica −10 dB de NFB), 1,0–1,5
+  kHz (estable solo a drive ≤0,05), 2,0 kHz (fallos), **cascada 2×2,5 kHz
+  (peor: ciclo de 44 V)**, cascada **2×900 Hz (seno estable a todo drive y a
+  44,1/96/192 kHz, pero un impulso de 2 Vp engancha: 86→102→11→4,5 V con
+  ~14k fallos)**, cascada **2×600 Hz (seno estable a todo drive; el impulso
+  latched continuo 86→84 V con ~65k fallos)**. Conclusión: la compensación
+  artificial no es la herramienta; el margen necesita las capacitancias
+  físicas de válvula/transformador (B18-009).
+- **Decisión adoptada (regla: fallo explícito sobre relleno silencioso):**
+  con la NFB activa, la selección estimada **cae a la carga nominal**
+  (documentado en código, `MODEL_ASSUMPTIONS.md` y con test
+  `reactive_load_falls_back_with_active_nfb`); el modo reactivo queda
+  habilitado con la NFB **abierta** del circuito (`present = false`), que es
+  la puerta de entrada de B18-009. La cascada provisional se retiró del
+  árbol (solo queda el polo único de 2,5 kHz, bit-exacto para el nominal).
+- B18-009 queda **desbloqueado**: su condición previa (015 física cerrada) se
+  cumple y el archivo de mediciones de margen de esta sección es su punto de
+  partida (también los resultados del barrido de ganancia).
+
+### 21.3 Verificación
+
+- `cargo check --workspace --all-targets` limpio; fmt/clippy completos
+  **pendientes de re-ejecutar** al cierre (la sesión terminó con la batería
+  de tests corregida: ver 21.4).
+- Test nuevo `crates/b18n-dsp/tests/reactive_load.rs` (8): contraste AC con
+  el golden SPICE (< 0,5 dB / < 10°, banda audible a 4×), anclas de la
+  impedancia estimada, transimpedancia |v/i| = |Z(f)| en 45/200/1000 Hz,
+  corriente que responde al pico de resonancia, motor reactivo + NFB abierta
+  estable (drive 0,45+0,35 compuesto; 0 fallos; respuesta con diferencia RMS
+  ≥1 % frente a la resistiva), fallback documentado con NFB activa, selección
+  efectiva + reset reproducible, batería 44,1/48/96/192 kHz impulso+tono con
+  el criterio < 500 fallos de `nfb_stability`.
+- El sonido por defecto (carga resistiva) es **invariante**: el camino reduce
+  a las mismas ecuaciones de B18-013; render E2E igual al baseline (pico
+  4,916955, RMS 1,4760989, igual a la precisión del reporte; diferencia
+  máxima por muestra 1,2e-7, por reorden aritmético). Sin
+  `ALGORITHM_VERSION`.
+
+### 21.4 Pendientes al cierre (pasa al handoff)
+
+- Actualización 2026-10-15 (fin de la sesión): `fmt`/`clippy` además
+  verificados; batería completa de `reactive_load.rs` con el criterio final
+  verificada verde (**8 tests + 1 `#[ignore]`**: impulso 4 Vp a 44,1 kHz con
+  carga reactiva engancha el solve aislado — 33.855/65.536 —, test
+  `reactive_impulse_extreme_pending_b18_009`); la batería moderada corre con
+  `< 5.000` fallos (ráfagas 155–1.347 tras salto; seno equivalente limpio).
+  `cargo test --workspace` debug: **215 en verde** (4 ignorados: 1 de
+  B18-015 + 3 del bench de CPU del plugin). Render E2E re-verificado
+  invariante (diff máx. 1,19e-7). **Quedan:** `test --workspace --release`,
+  `build --release`, bench y bundle.
+- Decisiones B18-009 (ahora desbloqueado): capacitancias físicas del 7199 y
+  la 7027A (datasheets RCA listan valores), cierre del lazo por muestra,
+  retirada de `z^-1`/LP y **apertura** del modo reactivo con NFB;
+  re-verificar estrés de alias/impulso (incluido el caso ignorado) y
+  regenerar goldens si algo audible cambia.
+
+## 22. B18-009 - caracterización física del lazo en SPICE (paso 1, 2026-10-15)
+
+Ejecutado tras cerrar el paso 0 del handoff (fmt, clippy, test release, build,
+bench, bundle y render E2E invariante: pico 4,916955 / RMS 1,4760989 / 47
+muestras de latencia, sin cambios).
+
+### 22.1 Datos de datasheet añadidos al análisis
+
+- RCA 7027-A (8-59), capacidades interelectródicas directas: rejilla 1-placa
+  1,5 pF; rejilla 1-resto 10 pF; placa-resto 7,5 pF (origin = datasheet).
+- RCA 7199 (7-63), triodo: rejilla-placa 2 pF, rejilla-cátodo 2,3 pF,
+  placa-cátodo 0,3 pF. Pentodo: rejilla 1-placa 0,06 pF máx., rejilla
+  1-cátodo 5 pF, placa-cátodo 2 pF.
+- No incluyen zócalo ni cableado; no están aún en el overlay ni en el motor.
+
+### 22.2 Netlist de referencia (scripts/spice/nfb_loop_reference.py)
+
+Lazo completo, sin z^-1 ni polo de 2,5 kHz: inversor 7199 (Koren RCA), acoplo
+50 nF / 1 kΩ / 100 kΩ a -55 V, dos 7027A (Koren + división de pantalla de
+	ube_models.7027a.koren.*), OT-471 diferencial con CT a B+ (Lm partida en
+dos mitades, Lleak 12 mH, Cp 100 pF, R_core 500 Ω, DCR 150 Ω por mitad),
+carga 8 Ω o RLC estimada (B18-015) y NFB de 22 kΩ desde la toma de 16 Ω
+(TAP_GAIN = N8/N16 = 1,414, polaridad -1 como en el motor).
+Las capacitancias van en un interruptor (caps). Se ejecuta con
+	ools/ngspice (ngspice 47). Los netlists son generados por script, no se
+editan a mano.
+
+Corrección de método durante la sesión: la primera versión alimentaba las
+placas solo por 10 MΩ y los tubos las llevaban a ~0 V (corriente de reposo
+irreal). La alimentación correcta es el punto medio de Lm a B+.
+
+### 22.3 Resultados (ganancia |v_8Ω / v_in|, dB, 1 V de entrada)
+
+| Variante | 1 kHz | 20 kHz | 100 kHz | 500 kHz | 2 MHz | Pico sobre 1 kHz |
+|---|---|---|---|---|---|---|
+| Nominal, lazo abierto, datasheet | 33,1 | 32,8 | 31,3 | -9,4 | -54,4 | 0 dB |
+| Nominal, NFB, datasheet | 22,8 | 22,6 | 19,7 | -9,2 | -54,2 | 0,01 dB |
+| Nominal, NFB, sin capacitancias | 22,8 | 22,8 | 21,7 | 9,7 | -12,2 | 0,01 dB |
+| Reactiva, lazo abierto, datasheet | 32,7 | 64,5 | 38,0 | 8,7 | -23,7 | 36,2 dB a 23,8 kHz |
+| Reactiva, NFB, datasheet | 22,3 | 20,6 | 19,6 | 7,1 | -23,6 | 0,97 dB a 399 Hz |
+| Reactiva, NFB, sin capacitancias | 22,3 | 20,6 | 20,6 | 20,2 | 16,5 | 1,0 dB a 399 Hz |
+
+Lecturas:
+
+1. Con NFB cerrada y carga reactiva, el lazo cerrado **no presenta pico de
+   HF** (ningún punto supera al pico de 399 Hz de 0,97 dB) y cae de forma
+   monótona por encima de 1 kHz. La lazo abierta sí tiene resonancia de
+   36 dB a 24 kHz (la que la NFB amortigua).
+2. Las capacitancias de válvula **son el roll-off HF físico** del lazo:
+   sin ellas, la ganancia cerrada reactiva sube a +20 dB a 500 kHz y +16 dB
+   a 2 MHz; con ellas, a +7 dB y -24 dB. Confirma la hipótesis de B18-009
+   (la fase HF la deben dar las capacitancias, no un polo artificial).
+3. El polo de 2,5 kHz no aparece en la física: el lazo analógico es estable
+   sin él. Su papel era enmascarar el retardo de una muestra de la
+   realimentación (z^-1 a la tasa efectiva: 5,2 µs a 4×, ~45° a 24 kHz y
+   ~180° cerca de 96 kHz). Ese retardo es el origen del ciclo límite medido
+   en B18-015.
+
+Límites declarados: es AC **lineal** alrededor del reposo; no cubre
+estabilidad de gran señal (fallos de Newton, enganche con impulsos), ni
+margen de fase calculado explícitamente (solo pico de lazo cerrado y
+magnitudes), ni el cableado (pF de zócalo no incluidos).
+
+### 22.4 Decisión y siguiente paso
+
+- **No se ha modificado el motor Rust** en esta ronda: retirar z^-1 y el LP
+  es un cambio audible (sube ALGORITHM_VERSION, regenerar goldens y
+  re-verificar CPU, guardia de 32 µs y los tests de alias y de carga reactiva).
+- Siguiente paso de B18-009 (orden): (a) añadir las capacitancias de
+  datasheet al overlay (origin = datasheet, con fuente y método) y a los
+  modelos de 7199 y 7027A; (b) cerrar el lazo de forma implícita en el
+  motor (escalar secante sobre _fb, o linealizada con la sensibilidad del
+  Jacobiano) sin z^-1 ni LP; (c) contrastar la respuesta cerrada del motor
+  con el barrido de
+fb_loop_reference.py (tolerancia a fijar tras medir);
+  (d) estrés de alias/impulso y CPU antes de cambiar ALGORITHM_VERSION.
+
+### 22.5 Intento de cierre implícito del lazo en el motor (medido, revertido)
+
+Tras la caracterización de 22.3 se intentó implementar el cierre implícito por
+muestra en engine.rs (close_feedback_loop), retirando el z^-1 y el polo
+de 2,5 kHz y resolviendo _tap = polaridad·tap_gain·secondary(v_tap) con
+iteración sobre el escalar (secante y, después, sustitución amortiguada),
+evaluando cada tanteo sobre clones planos (sin asignación) y comprometiendo la
+mejor evaluación. ALGORITHM_VERSION no se tocó.
+
+- Resultado: **no converge en el dominio discreto sin los parásitos físicos**.
+
+fb_stability::stable_across_rates_loads_and_drives falla a 44,1 kHz / 16 Ω
+  / 1 V con 9.149–15.102 fallos de solver (según el esquema de paso) frente al
+  criterio < 4.096. closed_loop_reduces_gain_and_stays_stable también cae
+  en la variante amortiguada.
+- Lectura: el lazo **analógico** con las capacitancias de datasheet es estable
+  sin el polo (22.3), pero el lazo **discreto** del motor, que no modela esas
+  capacitancias, tiene demasiada ganancia y fase en HF; el mapa escalar no es
+  monótono y la iteración (barata en CPU por requisito de tiempo real) diverge.
+  No es un problema del solver de las etapas (los mensajes de fallo apuntan al
+  solve acoplado con valores extremos durante la divergencia).
+- Decisión: **revertir** al camino z^-1 + polo de 2,5 kHz (bit-exacto:
+  render E2E de nuevo invariante, pico 4,916955 / RMS 1,4760989 / latencia 47;
+  mt, clippy -D warnings y cargo test --workspace en verde). El intento
+  queda documentado en el comentario de FEEDBACK_COMPENSATION_CUTOFF_HZ.
+- Condición para reintentar (ronda propia): añadir la red de capacitancias
+  interelectródicas de la 7199 y la 7027A (datasheet RCA, ya extraídas) y del
+  arrollamiento del OT al modelo del motor, y usar un solver con búsqueda de
+  línea / Newton con Jacobiano del lazo; verificar CPU (guardia de 32 µs) antes
+  de retirar el polo y subir ALGORITHM_VERSION.
+
+
+## 23. B18-009 - candidato conjunto y bloqueo fisico independiente (2026-10-16)
+
+Se implemento un candidato aislado `stages/output_network.rs` (7199 + 7027A +
+OT + NFB, once nodos, eliminacion lineal de G y Newton 10D con Jacobiano
+analitico/busqueda de linea), con capacitancias RCA trazadas en el overlay.
+
+**Resultado: B18-009 sigue abierto y bloqueado para integracion.** La nueva
+referencia `nfb_coupled_reference.py` corrige la orientacion del secundario
+respecto del motor y separa el puerto comun/diferencial del OT. El analisis
+AC sin pico de 22.3 NO probaba estabilidad. `nfb_loop_margins.py` mide:
+
+- Nominal: margen HF -55,38 grados; margen de ganancia -11,23 dB.
+- RLC: margen HF -9,54 grados; margen de ganancia -4,95 dB.
+- Pulso SPICE 10 uV, retirado a 2,1 us: oscilacion sostenida (~15 V nominal,
+  ~41 V RLC; amplitudes diagnosticas, no hardware, sin conduccion de rejilla).
+- DC/AC en los casos convergentes del candidato: maximo 0,0313 dB / 0,7783
+  grados frente a SPICE. RLC abierta usa 768 kHz para separar el warping.
+- RLC cerrada Rust, 93,75 Hz / 0,1 mV / 192 kHz efectivos: 62.335 fallos de
+  solve en 65.536 pasos; test de aceptacion explicitamente ignorado/fallido.
+- CPU candidata: 41,3 -> 32,487 us/muestra estereo 4x/48 kHz; aun excede
+  guardia 32 us. No se amplio la guardia.
+
+Se retiro la integracion temporal. El plugin conserva su camino anterior
+(z^-1 + polo de 2,5 kHz), version de algoritmo y fallback resistivo con NFB.
+No se hizo commit. La referencia anterior se conserva como exploracion,
+no como aprobacion fisica. Informe completo, limitaciones, reproduccion y
+siguiente paso: `docs/B18_009_STATUS.md`.

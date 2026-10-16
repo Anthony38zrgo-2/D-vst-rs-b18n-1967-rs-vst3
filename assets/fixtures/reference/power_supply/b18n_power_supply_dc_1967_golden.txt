@@ -1,0 +1,10 @@
+# B-18N 1967 - Fuente B18-012, punto DC con cargas de reposo del modelo
+# ngspice 47 sobre scripts/spice/b18n_power_supply_1967.cir
+# Condiciones: Vsrc=518.935 V, Rrect=150 ohm, 1k/10k/22k,
+#   30/40/40/40 uF, bias -55 V/15k/100 uF,
+#   Ict=83 mA, Iscr=3 mA, Itri=2.3 mA, Ipre=4.6 mA, Ibias=0.
+v(h2) = 505.000000
+v(h1) = 495.100000
+v(h3) = 472.100000
+v(h4) = 393.900000
+v(vbias) = -55.000000

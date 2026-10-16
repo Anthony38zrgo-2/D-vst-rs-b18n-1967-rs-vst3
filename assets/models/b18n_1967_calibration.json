@@ -1,6 +1,6 @@
 {
   "target_revision": "1967-05",
-  "notes": "Parámetros de modelo no históricos: el 6SL7 y el 7027A son ajustes/valores publicados estimados; el 7199 (pentodo y triodo) se ajusta a las anclas del boletín RCA 1963 con origen datasheet. Todos van etiquetados, con unidad, método y fecha; ninguno modifica nominales del JSON canónico.",
+  "notes": "Parámetros de modelo no históricos: el 6SL7 es un ajuste a las anclas del JSON; la 7027A se ajusta a curvas digitalizadas y tablas del datasheet RCA 7027-A (8-59) desde B18-010/011, incluida la división de pantalla Ig2/Ip calibrada contra Vp; el 7199 (pentodo y triodo) se ajusta a las anclas del boletín RCA 1963 con origen datasheet; los parásitos lineales del OT-471 (Lm/Lleak/Cp, B18-013) son estimaciones de ingeniería sin medida. Todos van etiquetados, con unidad, método y fecha; ninguno modifica nominales del JSON canónico.",
   "assumptions": {
     "tube_models.6sl7.koren.mu": {
       "value": 66.0811,
@@ -67,52 +67,52 @@
       "source": "aproximación del proyecto, documentada"
     },
     "tube_models.7027a.koren.mu": {
-      "value": 8.7,
+      "value": 9.0,
       "unit": "1",
       "origin": "datasheet",
-      "method": "parámetros Koren publicados de la 6L6GC (tubo padre de la 7027A; Duncanamps mapea 7027A -> 6L6GC)",
-      "date": "2026-10-09",
-      "source": "Norman Koren, Improved vacuum tube models for SPICE (Tabla 1)"
+      "method": "ajuste least_squares (scipy) a curvas digitalizadas del datasheet RCA y a sus tablas de clase A1 y bias fija; cota mu <= 9.0 para conservar conduccion en el reposo documentado del B-18N (pantalla ~500 V, bias -55 V)",
+      "date": "2026-10-14",
+      "source": "RCA 7027-A datasheet 8-59 (assets/reference/7027A_RCA.pdf); scripts/fit_7027a_model.py"
     },
     "tube_models.7027a.koren.ex": {
-      "value": 1.35,
+      "value": 1.298317,
       "unit": "1",
       "origin": "datasheet",
-      "method": "parámetros Koren publicados de la 6L6GC",
-      "date": "2026-10-09",
-      "source": "Norman Koren, Improved vacuum tube models for SPICE (Tabla 1)"
+      "method": "ajuste least_squares a curvas digitalizadas del datasheet RCA y anclas tabuladas",
+      "date": "2026-10-14",
+      "source": "RCA 7027-A datasheet 8-59; scripts/fit_7027a_model.py"
     },
     "tube_models.7027a.koren.kg1": {
-      "value": 1460.0,
+      "value": 1087.896529,
       "unit": "1",
       "origin": "datasheet",
-      "method": "parámetros Koren publicados de la 6L6GC",
-      "date": "2026-10-09",
-      "source": "Norman Koren, Improved vacuum tube models for SPICE (Tabla 1)"
+      "method": "ajuste least_squares a curvas digitalizadas del datasheet RCA y anclas tabuladas",
+      "date": "2026-10-14",
+      "source": "RCA 7027-A datasheet 8-59; scripts/fit_7027a_model.py"
     },
     "tube_models.7027a.koren.kg2": {
       "value": 4500.0,
       "unit": "1",
       "origin": "datasheet",
-      "method": "parámetros Koren publicados de la 6L6GC (corriente de pantalla)",
+      "method": "respaldo legacy (Koren 6L6GC); no se usa: la corriente de pantalla de la 7027A usa la division calibrada screen_ratio_*",
       "date": "2026-10-09",
       "source": "Norman Koren, Improved vacuum tube models for SPICE (Tabla 1)"
     },
     "tube_models.7027a.koren.kp": {
-      "value": 48.0,
+      "value": 42.405486,
       "unit": "1",
       "origin": "datasheet",
-      "method": "parámetros Koren publicados de la 6L6GC",
-      "date": "2026-10-09",
-      "source": "Norman Koren, Improved vacuum tube models for SPICE (Tabla 1)"
+      "method": "ajuste least_squares a curvas digitalizadas del datasheet RCA y anclas tabuladas",
+      "date": "2026-10-14",
+      "source": "RCA 7027-A datasheet 8-59; scripts/fit_7027a_model.py"
     },
     "tube_models.7027a.koren.kvb": {
-      "value": 12.0,
+      "value": 38.352094,
       "unit": "V",
       "origin": "datasheet",
-      "method": "parámetros Koren publicados de la 6L6GC (rodilla de placa)",
-      "date": "2026-10-09",
-      "source": "Norman Koren, Improved vacuum tube models for SPICE (Tabla 1)"
+      "method": "ajuste least_squares a las rodillas de la familia de placa (p05) del datasheet RCA",
+      "date": "2026-10-14",
+      "source": "RCA 7027-A datasheet 8-59; scripts/fit_7027a_model.py"
     },
     "tube_models.7027a.koren.vct": {
       "value": 0.0,
@@ -121,6 +121,30 @@
       "method": "sin potencial de contacto documentado; se fija en 0",
       "date": "2026-10-09",
       "source": "proyecto"
+    },
+    "tube_models.7027a.koren.screen_ratio_floor": {
+      "value": 0.015971,
+      "unit": "1",
+      "origin": "estimated",
+      "method": "division Ig2/Ip = F + G*exp(-Vp/V0) ajustada a la curva Ig2 digitalizada de p07, a la forma vs Vp de p06 y a las tablas de clase A1 y bias fija (el 'max-signal' de la tabla es media de ciclo y no entra en el ajuste)",
+      "date": "2026-10-14",
+      "source": "RCA 7027-A datasheet 8-59; scripts/fit_7027a_model.py (B18-011)"
+    },
+    "tube_models.7027a.koren.screen_ratio_boost": {
+      "value": 0.142476,
+      "unit": "1",
+      "origin": "estimated",
+      "method": "desviacion extra a pantalla en la rodilla de placa; ajuste de la forma Ig2(Vp) de la curva p06 sin etiqueta",
+      "date": "2026-10-14",
+      "source": "RCA 7027-A datasheet 8-59; scripts/fit_7027a_model.py (B18-011)"
+    },
+    "tube_models.7027a.koren.screen_ratio_volts": {
+      "value": 255.305,
+      "unit": "V",
+      "origin": "estimated",
+      "method": "escala de Vp de la division de pantalla; ajuste de la forma Ig2(Vp) de p06 (+-15 % de incertidumbre del trazado)",
+      "date": "2026-10-14",
+      "source": "RCA 7027-A datasheet 8-59; scripts/fit_7027a_model.py (B18-011)"
     },
     "tube_models.7027a.grid.threshold_v": {
       "value": 0.0,
@@ -281,12 +305,181 @@
       "method": "derivado de tensiones típicas del JSON: 175 V + (2.4 V/5.6 kΩ)·470 kΩ = 376 V; 185 V + (2.0 V/2.2 kΩ)·220 kΩ = 385 V; se redondea a 380 V",
       "date": "2026-10-09",
       "source": "assets/models/B18N_1967_simulation_parameters.json"
+    },
+    "supply.rectifier.series_ohms": {
+      "value": 150.0,
+      "unit": "ohm",
+      "origin": "estimated",
+      "method": "B18-012: resistencia serie equivalente del rectificador 5AR4/GZ34 + cobre del PT-12XA como aproximación RC + fuente media; sin curva de conducción ni DCR documentadas (unknowns del JSON). Calibrada para B+ 505 V con la corriente total de reposo del modelo.",
+      "date": "2026-10-15",
+      "source": "aproximación del proyecto, documentada (SCH-567 zona V6/PT-12XA)"
+    },
+    "supply.bias.series_ohms": {
+      "value": 15000.0,
+      "unit": "ohm",
+      "origin": "estimated",
+      "method": "B18-012: resistencia serie equivalente de la fuente de bias (-55 V, 10D6 + 100 µF + 100K-2W + divisor 47K/56K + HUM 100 Ω); topología exacta de toma del devanado pendiente de traza fina. Tau ~1.5 s con 100 µF.",
+      "date": "2026-10-15",
+      "source": "aproximación del proyecto, documentada (SCH-567 zona bias)"
+    },
+    "output_transformer.winding_inductance_h": {
+      "value": 28.7,
+      "unit": "H",
+      "origin": "estimated",
+      "method": "B18-013: inductancia de magnetización diferencial (placa-placa) por criterio de diseño push-pull: esquina de baja frecuencia f = R_reflejada/(2π·Lm) = 25 Hz con R_reflejada = N8²·(8 + 0.4) ≈ 4514 Ω → Lm ≈ 28.7 H. Sin medida del OT-471.",
+      "date": "2026-10-15",
+      "source": "aproximación del proyecto, documentada (datos del OT-471 del JSON: 4300 Ω, 8/16 Ω, DCR 300/0.4 Ω)"
+    },
+    "output_transformer.leakage_inductance_h": {
+      "value": 0.012,
+      "unit": "H",
+      "origin": "estimated",
+      "method": "B18-013: inductancia de fuga diferencial referida al primario por criterio de extensión de agudos: esquina f = R_reflejada/(2π·Lleak) = 60 kHz con R_reflejada ≈ 4514 Ω → Lleak ≈ 12 mH. Sin medida del OT-471.",
+      "date": "2026-10-15",
+      "source": "aproximación del proyecto, documentada"
+    },
+    "output_transformer.parasitic_capacitance_f": {
+      "value": 1e-10,
+      "unit": "F",
+      "origin": "estimated",
+      "method": "B18-013: capacidad parásita equivalente placa-placa (interbobinado) pequeña, fijada para que la resonancia con Lleak (f = 1/(2π·√(Lleak·Cp)) ≈ 145 kHz) caiga fuera de la banda audible y de la banda de proceso a 4×; con la impedancia de fuente estimada del par (2·rp = 45 kΩ, rp del datasheet RCA a clase A1) el polo queda ≈ 35 kHz. Sin medida del OT-471.",
+      "date": "2026-10-15",
+      "source": "aproximación del proyecto, documentada"
+    },
+    "output_transformer.core_loss_ohms": {
+      "value": 500.0,
+      "unit": "ohm",
+      "origin": "estimated",
+      "method": "B18-013: resistencia serie equivalente de las pérdidas del camino de flujo (histéresis/foucault como término de amortiguación con Lm); acota la deriva de continua del integrador de flujo mientras el núcleo no tenga modelo magnético no lineal (B18-014) y fija la relajación del flujo τ = Lm/R_core ≈ 57 ms. Criterio de valor: atenuación < 0,1 dB en la esquina de 25 Hz (R_core ≪ 2πf·Lm). No es una curva de pérdidas medida.",
+      "date": "2026-10-15",
+      "source": "aproximación del proyecto, documentada"
+    },
+    "output_transformer.magnetizing_current_limit_a": {
+      "value": 0.12,
+      "unit": "A",
+      "origin": "estimated",
+      "method": "B18-013: cota provisional de la corriente de magnetización (limitador numérico del integrador de flujo, placeholder de saturación hasta B18-014). Valor: 1,3× la corriente de pico a plena potencia (50 W/8 Ω → 656 V de pico en el primario) a 40 Hz: i_pk = 656/(2π·40·28.7) ≈ 91 mA → 0,12 A. No actúa en operación nominal; solo acota transitorios patológicos.",
+      "date": "2026-10-15",
+      "source": "aproximación del proyecto, documentada"
+    },
+    "speaker.reactive_load.voice_coil_resistance_ohms": {
+      "value": 6.5,
+      "unit": "ohm",
+      "origin": "estimated",
+      "method": "B18-015: resistencia DC de la bobina del altavoz de 18\" por regla de dimensionado de altavoces nominales de 8 Ω (Re ≈ 0,8×Znom); no hay medición del Cleveland concreto (cabinet.speaker_impedance_curve = null).",
+      "date": "2026-10-15",
+      "source": "aproximación del proyecto, documentada (cabinet.nominal_load_ohms = 8 del JSON)"
+    },
+    "speaker.reactive_load.voice_coil_inductance_h": {
+      "value": 0.0008,
+      "unit": "H",
+      "origin": "estimated",
+      "method": "B18-015: inductancia de bobina típica declarada de un altavoz de 18\" (esquina Re/(2πLe) ≈ 1,3 kHz, subida inductiva en agudos). Sin medida.",
+      "date": "2026-10-15",
+      "source": "aproximación del proyecto, documentada"
+    },
+    "speaker.reactive_load.motional_resistance_ohms": {
+      "value": 23.5,
+      "unit": "ohm",
+      "origin": "estimated",
+      "method": "B18-015: resistencia de la rama de movimiento fijada por el pico declarado |Z(fs)| ≈ 30 Ω (Re + Res); valor típico de altavoz de graves de 8 Ω. Sin medida.",
+      "date": "2026-10-15",
+      "source": "aproximación del proyecto, documentada"
+    },
+    "speaker.reactive_load.motional_inductance_h": {
+      "value": 0.0693,
+      "unit": "H",
+      "origin": "estimated",
+      "method": "B18-015: inductancia de la rama de movimiento derivada de fs = 45 Hz (típica declarada de un 18\" en caja) y Q = 1,2: Les = Res/(2π·fs·Q). Sin medida.",
+      "date": "2026-10-15",
+      "source": "aproximación del proyecto, documentada"
+    },
+    "speaker.reactive_load.motional_capacitance_farads": {
+      "value": 0.0001806,
+      "unit": "F",
+      "origin": "estimated",
+      "method": "B18-015: condensador de la rama de movimiento coherente con fs = 45 Hz y Les = 69,3 mH (Ces = 1/((2π·fs)²·Les)). Sin medida; red Re + Le + (Res ∥ Les ∥ Ces) declarada, seleccionable en el plugin (no es la carga por defecto).",
+      "date": "2026-10-15",
+      "source": "aproximación del proyecto, documentada"
+    },
+    "tube_models.7199.pentode.capacitance.gp": {
+      "value": 6e-14,
+      "unit": "F",
+      "origin": "datasheet",
+      "method": "B18-009: direct interelectrode capacitance; excludes socket/wiring. 7199 pentode Cgp is the datasheet maximum; 7027-A gk/pk group cathode, grids 2/3 and heater as stated in DATA 1 (lumped to AC ground; excludes the separately modelled gp).",
+      "date": "2026-10-16",
+      "source": "https://www.drtube.com/datasheets/7199-rca1963.pdf"
+    },
+    "tube_models.7199.pentode.capacitance.gk": {
+      "value": 5e-12,
+      "unit": "F",
+      "origin": "datasheet",
+      "method": "B18-009: direct interelectrode capacitance; excludes socket/wiring. 7199 pentode Cgp is the datasheet maximum; 7027-A gk/pk group cathode, grids 2/3 and heater as stated in DATA 1 (lumped to AC ground; excludes the separately modelled gp).",
+      "date": "2026-10-16",
+      "source": "https://www.drtube.com/datasheets/7199-rca1963.pdf"
+    },
+    "tube_models.7199.pentode.capacitance.pk": {
+      "value": 2e-12,
+      "unit": "F",
+      "origin": "datasheet",
+      "method": "B18-009: direct interelectrode capacitance; excludes socket/wiring. 7199 pentode Cgp is the datasheet maximum; 7027-A gk/pk group cathode, grids 2/3 and heater as stated in DATA 1 (lumped to AC ground; excludes the separately modelled gp).",
+      "date": "2026-10-16",
+      "source": "https://www.drtube.com/datasheets/7199-rca1963.pdf"
+    },
+    "tube_models.7199.triode.capacitance.gp": {
+      "value": 2e-12,
+      "unit": "F",
+      "origin": "datasheet",
+      "method": "B18-009: direct interelectrode capacitance; excludes socket/wiring. 7199 pentode Cgp is the datasheet maximum; 7027-A gk/pk group cathode, grids 2/3 and heater as stated in DATA 1 (lumped to AC ground; excludes the separately modelled gp).",
+      "date": "2026-10-16",
+      "source": "https://www.drtube.com/datasheets/7199-rca1963.pdf"
+    },
+    "tube_models.7199.triode.capacitance.gk": {
+      "value": 2.3e-12,
+      "unit": "F",
+      "origin": "datasheet",
+      "method": "B18-009: direct interelectrode capacitance; excludes socket/wiring. 7199 pentode Cgp is the datasheet maximum; 7027-A gk/pk group cathode, grids 2/3 and heater as stated in DATA 1 (lumped to AC ground; excludes the separately modelled gp).",
+      "date": "2026-10-16",
+      "source": "https://www.drtube.com/datasheets/7199-rca1963.pdf"
+    },
+    "tube_models.7199.triode.capacitance.pk": {
+      "value": 3e-13,
+      "unit": "F",
+      "origin": "datasheet",
+      "method": "B18-009: direct interelectrode capacitance; excludes socket/wiring. 7199 pentode Cgp is the datasheet maximum; 7027-A gk/pk group cathode, grids 2/3 and heater as stated in DATA 1 (lumped to AC ground; excludes the separately modelled gp).",
+      "date": "2026-10-16",
+      "source": "https://www.drtube.com/datasheets/7199-rca1963.pdf"
+    },
+    "tube_models.7027a.capacitance.gp": {
+      "value": 1.5e-12,
+      "unit": "F",
+      "origin": "datasheet",
+      "method": "B18-009: direct interelectrode capacitance; excludes socket/wiring. 7199 pentode Cgp is the datasheet maximum; 7027-A gk/pk group cathode, grids 2/3 and heater as stated in DATA 1 (lumped to AC ground; excludes the separately modelled gp).",
+      "date": "2026-10-16",
+      "source": "https://frank.pocnet.net/sheets/049/7/7027A.pdf"
+    },
+    "tube_models.7027a.capacitance.gk": {
+      "value": 1e-11,
+      "unit": "F",
+      "origin": "datasheet",
+      "method": "B18-009: direct interelectrode capacitance; excludes socket/wiring. 7199 pentode Cgp is the datasheet maximum; 7027-A gk/pk group cathode, grids 2/3 and heater as stated in DATA 1 (lumped to AC ground; excludes the separately modelled gp).",
+      "date": "2026-10-16",
+      "source": "https://frank.pocnet.net/sheets/049/7/7027A.pdf"
+    },
+    "tube_models.7027a.capacitance.pk": {
+      "value": 7.5e-12,
+      "unit": "F",
+      "origin": "datasheet",
+      "method": "B18-009: direct interelectrode capacitance; excludes socket/wiring. 7199 pentode Cgp is the datasheet maximum; 7027-A gk/pk group cathode, grids 2/3 and heater as stated in DATA 1 (lumped to AC ground; excludes the separately modelled gp).",
+      "date": "2026-10-16",
+      "source": "https://frank.pocnet.net/sheets/049/7/7027A.pdf"
     }
   },
   "measured": {},
   "provenance": [
     "RCA 6SL7-GT datasheet (referencia de pequeña señal a 250 V recogida en el JSON histórico)",
     "RCA 7199 DATA 1/2 (7-63), Medium-Mu Triode - Sharp-Cutoff Pentode (anclas de pentodo y triodo)",
+    "RCA 7027-A DATA 1/2 (8-59): curvas digitalizadas (assets/fixtures/reference/power_7027a/) y tablas de clase A1 y bias fija",
     "tensiones típicas de reposo del esquema 5/67 recogidas en el JSON histórico",
     "Norman Koren, Improved vacuum tube models for SPICE (estructura de las ecuaciones)"
   ]

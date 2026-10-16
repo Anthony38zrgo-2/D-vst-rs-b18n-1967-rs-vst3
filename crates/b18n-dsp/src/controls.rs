@@ -22,6 +22,19 @@ pub enum SpeakerProfile {
     Fifteen,
 }
 
+/// Selección del modelo eléctrico de carga del secundario (B18-015).
+///
+/// La resistencia nominal del JSON histórico es el **fallback declarado**: el
+/// equivalente RLC estimado solo existe si el overlay de calibración trae
+/// `speaker.reactive_load.*`; sin él, la selección cae a la nominal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SpeakerLoadSelection {
+    #[default]
+    NominalResistance,
+    /// Equivalente RLC estimado del altavoz (`estimated`, no medido).
+    EstimatedLumped,
+}
+
 /// Límites de los ajustes de nivel modernos (no históricos).
 pub const TRIM_MIN_DB: f32 = -60.0;
 pub const TRIM_MAX_DB: f32 = 24.0;
@@ -49,6 +62,8 @@ pub struct RuntimeControls {
     /// IR de gabinete opcional (moderna).
     pub cabinet_enabled: bool,
     pub speaker_profile: SpeakerProfile,
+    /// Carga eléctrica del secundario (B18-015): nominal o RLC estimado.
+    pub speaker_load: SpeakerLoadSelection,
 }
 
 impl Default for RuntimeControls {
@@ -65,6 +80,7 @@ impl Default for RuntimeControls {
             output_trim_db: 0.0,
             cabinet_enabled: false,
             speaker_profile: SpeakerProfile::Direct,
+            speaker_load: SpeakerLoadSelection::default(),
         }
     }
 }
@@ -104,6 +120,7 @@ impl RuntimeControls {
             output_trim_db: clamp_trim(self.output_trim_db),
             cabinet_enabled: self.cabinet_enabled,
             speaker_profile: self.speaker_profile,
+            speaker_load: self.speaker_load,
         }
     }
 }

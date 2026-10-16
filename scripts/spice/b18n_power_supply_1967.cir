@@ -1,0 +1,45 @@
+* B-18N/B-15ND 1967 - Fuente dinamica B18-012 (RC + rectificador promedio)
+*
+* Fuente: SCH-567 zona V6/PT-12XA (5AR4, 1K-10W, 10K-1W, 22K-1W,
+* 30uF/600V + 3x40uF/500V, bias 10D6 + 100uF/100V).
+* Modelo: rectificador como fuente Thevenin Vsrc + Rrect = 150 ohm
+* (aproximacion RC + media, sin curva 5AR4 ni DCR documentadas; overlay
+* supply.rectifier.series_ohms, estimated). Vsrc se calibra para B+ = 505 V
+* con la corriente total de reposo del modelo (0.0929 A -> Vsrc = 518.94 V).
+* Bias como fuente -55 V + Rb = 15 kohm (estimated) + 100 uF.
+* Cargas: fuentes de corriente DC = reposo del modelo (CT 83 mA, pantallas
+* 3 mA, triodo 2.3 mA, previo 4.6 mA, bias 0 mA).
+* Nodos: h2 (rectificador/CT), h1 (pantallas), h3 (triodo), h4 (previo).
+*
+* Condiciones: .op con cargas de reposo; .tran con escalon +20 mA en H2
+* a t = 50 ms (sag y recuperacion). Tolerancias: DC +-2 V vs Rust
+* (red resistiva identica); tran: forma exponencial con tau dominante
+* Rrect*Ctotal ~ 22 ms (solo contraste cualitativo, no golden de forma).
+
+Vsrc hv_src 0 DC 518.935
+Rrect hv_src h2 150
+Ch2 h2 0 30u
+R1k h2 h1 1k
+Ch1 h1 0 40u
+R10k h1 h3 10k
+Ch3 h3 0 40u
+R22k h1 h4 22k
+Ch4 h4 0 40u
+
+Ict h2 0 DC 0.083
+Iscr h1 0 DC 0.003
+Itri h3 0 DC 0.0023
+Ipre h4 0 DC 0.0046
+
+Vb_src bias_src 0 DC -55
+Rb bias_src vbias 15k
+Cb vbias 0 100u
+Ibias vbias 0 DC 0
+
+.op
+.control
+set numdgt=10
+run
+print v(h2) v(h1) v(h3) v(h4) v(vbias)
+.endc
+.end

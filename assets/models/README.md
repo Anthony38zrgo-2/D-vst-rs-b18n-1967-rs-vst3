@@ -40,13 +40,30 @@ método y fecha:
 - Modelo Koren del **6SL7** (`tube_models.6sl7.koren.*`), ajustado por
   `scripts/fit_triode_model.py` a las anclas del JSON (tensiones típicas de los
   dos triodos y referencia de pequeña señal a 250 V).
-- Modelo Koren del **7027A** (`tube_models.7027a.koren.*`), parámetros
-  publicados de la 6L6GC (tubo padre de la 7027A) con su procedencia.
+- Modelo Koren del **7027A** (`tube_models.7027a.koren.*`), ajustado por
+  `scripts/fit_7027a_model.py` a curvas digitalizadas y tablas del datasheet
+  RCA 7027-A (8-59) (B18-010), incluida la **división de pantalla**
+  `Ig2 = Ip·(F + G·e^(−Vp/V0))` calibrada contra Vp (B18-011). `kg2` queda como
+  respaldo legacy (Koren 6L6GC) y no se usa con la división activa.
 - **Conducción de rejilla** aproximada de ambos tubos (`tube_models.*.grid.*`).
 - **Alimentación del previo** (`tube_models.preamp_supply_v`), derivada de las
   tensiones típicas y las resistencias de placa (376–385 V → 380 V).
+- **Fuente dinámica** (`supply.rectifier.series_ohms`, `supply.bias.series_ohms`;
+  B18-012): resistencias serie equivalentes del rectificador promedio y del
+  camino de bias, sin curva 5AR4 ni DCR del PT documentadas.
+- **Parásitos del OT-471** (`output_transformer.winding_inductance_h`,
+  `.leakage_inductance_h`, `.parasitic_capacitance_f`, `.core_loss_ohms`,
+  `.magnetizing_current_limit_a`; B18-013): Lm/Lleak/Cp estimados por criterios
+  de esquina y resonancia, pǸrdidas de flujo equivalentes y cota provisional de
+  flujo (placeholder de saturaci��n hasta B18-014). La cota y `R_core` no son
+  medidas; mǸtodo y fecha en cada entrada.
+- **Carga RLC estimada del altavoz** (`speaker.reactive_load.*`; B18-015):
+  red `Re + Le + (Res ∥ Les ∥ Ces)` con anclas declaradas (Re≈0,8×Znom;
+  fs=45 Hz, Q=1,2, pico |Z|=30 Ω; sin medición del Cleveland). La carga
+  reactiva es **opcional** y cae a la resistiva nominal sin overlay o con la
+  NFB provisional activa (archivado en `docs/sprint.md` §21).
 
-`load_reference()` aplica este overlay tras validar el JSON canónico. Ningún
+`load_reference()` aplica este overlay tras validar el JSON can��nico. Ningǧn
 valor de este archivo modifica nominales de componentes.
 
 ## `b18n_1967_calibration.example.json`

@@ -1,0 +1,101 @@
+* B-18N 1967 lazo NFB completo (B18-009, caracterizacion fisica)
+* load=nominal nfb=on caps=datasheet
+vb rail_p 0 dc 380
+vt rail_t 0 dc 460
+vbias bias 0 dc -55
+vscr scr 0 dc 500
+vbp bpl 0 dc 505
+vin inx 0 dc 0 ac 1
+rsrc inx pin7 135k
+* no untraced grid-leak resistor
+r270 rail_p pin2 270k
+r470 rail_p pin3 470k
+r150 pin3 0 150k
+c01 pin3 pin6 0.1u
+r15 pin6 0 1.5k
+c02 pin2 pin9 0.02u
+r10m pin1 pin9 10meg
+r33m pin9 0 3.3meg
+r47p rail_t pin1 47k
+r47k pin8 0 47k
+rfb tp pin6 22000
+Btp tp 0 V = {-1.414277*v(s4)}
+xpent pin2 pin3 pin7 pin6 k7199p
+xtri pin1 pin9 pin8 k7199t
+cg1 pin1 n1 50n
+rs1 n1 g1 1k
+rg1 g1 bias 100k
+cg2 pin8 n2 50n
+rs2 n2 g2 1k
+rg2 g2 bias 100k
+xp1 pa scr g1 0 k7027a
+xp2 pb scr g2 0 k7027a
+* Common-mode half-primary DCR, 150 ohms per side.
+Bcommon1 pa bpl I = {(v(pa)+v(pb)-2*v(bpl))/300}
+Bcommon2 pb bpl I = {(v(pa)+v(pb)-2*v(bpl))/300}
+Ed d 0 pa pb 1
+Fdiff1 pa 0 Ed -1
+Fdiff2 pb 0 Ed 1
+Rdc d a 300
+Rcore a f 500
+Lm f 0 28.7
+Ll f g 12m
+Cp a 0 100p
+esec s1 0 g 0 {1/23.18}
+vsense s1 s2 0
+rdsec s2 s4 0.4
+fpri g 0 vsense {1/23.18}
+rload s4 0 8
+cgk_p pin7 pin6 5p
+cgp_p pin7 pin2 0.06p
+cpk_p pin2 pin6 2p
+cgp_t pin9 pin1 2p
+cgk_t pin9 pin8 2.3p
+cpk_t pin1 pin8 0.3p
+cg1p_1 g1 pa 1.5p
+cg1k_1 g1 0 10p
+cpk_1 pa 0 7.5p
+cg1p_2 g2 pb 1.5p
+cg1k_2 g2 0 10p
+cpk_2 pb 0 7.5p
+
+.subckt k7199p p g2 g k params: mu=22.279549 ex=1.63827 kg1=3712.06538 kp=66.513832 kvb=12.522225 kg2=3807.560112
+Bvp vp 0 V = {max(v(p,k),0)}
+Be1 e1 0 V = {v(g2,k)/kp*ln(1+exp(kp*(1/mu+v(g,k)/v(g2,k))))}
+Bip p k I = {2*pwr(max(v(e1),0),ex)/kg1*atan(v(vp)/kvb)}
+Big2 g2 k I = {pwr(max(v(g2,k)/mu+v(g,k),0),ex)/kg2}
+.ends
+
+.subckt k7199t p g k params: mu=17 ex=0.978282 kg1=448.917294 kp=272.472003 kvb=160
+Bvp vp 0 V = {max(v(p,k),0)}
+Be1 e1 0 V = {v(vp)/kp*ln(1+exp(kp*(1/mu+v(g,k)/sqrt(kvb+v(vp)*v(vp)))))}
+Bip p k I = {pwr(max(v(e1),0),ex)/kg1}
+.ends
+
+* 7027A: Koren + division de pantalla Ig2 = Ip*(F + G*exp(-Vp/V0)) (B18-011).
+* Parametros de calibracion/overlay (tube_models.7027a.koren.*).
+.subckt k7027a p g2 g k
+Be1 e1 0 V = {v(g2,k)/42.405486*ln(1+exp(42.405486*(1/9.0+v(g,k)/v(g2,k))))}
+Bip p k I = {2*pwr(max(v(e1),0),1.298317)/1087.896529*atan(max(v(p,k),0)/38.352094)}
+Big2 g2 k I = {2*pwr(max(v(e1),0),1.298317)/1087.896529*atan(max(v(p,k),0)/38.352094)*(0.015971+0.142476*exp(-max(v(p,k),0)/255.305))}
+.ends
+
+.options method=gear
+.control
+set numdgt=15
+op
+wrdata target/spice_loop/dc_nominal_True.txt v(pin7) v(pin2) v(pin3) v(pin6) v(pin9) v(pin1) v(pin8) v(g1) v(g2) v(pa) v(pb)
+ac lin 1 93.75 93.75
+wrdata target/spice_loop/point_0.txt vm(s4) vp(s4)
+ac lin 1 375.0 375.0
+wrdata target/spice_loop/point_1.txt vm(s4) vp(s4)
+ac lin 1 1500.0 1500.0
+wrdata target/spice_loop/point_2.txt vm(s4) vp(s4)
+ac lin 1 6000.0 6000.0
+wrdata target/spice_loop/point_3.txt vm(s4) vp(s4)
+ac lin 1 12000.0 12000.0
+wrdata target/spice_loop/point_4.txt vm(s4) vp(s4)
+ac lin 1 18000.0 18000.0
+wrdata target/spice_loop/point_5.txt vm(s4) vp(s4)
+.endc
+.end

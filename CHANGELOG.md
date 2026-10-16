@@ -5,6 +5,137 @@ El versionado sigue SemVer una vez exista el primer bundle distribuible.
 
 ## [Unreleased]
 
+### Investigación — B18-009 (2026-10-16, integración bloqueada)
+
+- Candidato aislado `OutputNetwork`: solve conjunto 7199/7027A/OT/NFB,
+  capacitancias RCA en el overlay, Jacobiano analítico y búsqueda de línea.
+- Nueva referencia SPICE coherente en polaridad y puerto diferencial,
+  comparación DC/AC y medición explícita de retorno/transitorio.
+- **Bloqueo confirmado:** márgenes HF negativos (−55,38° nominal;
+  −9,54° RLC), oscilación SPICE tras pulso de 10 µV, prueba Rust reactiva
+  cerrada fallida y CPU candidata 32,487 µs frente a guardia de 32 µs.
+- El candidato no está conectado al motor/plugin. Se conservan el lazo
+  provisional, el fallback resistivo y la versión de algoritmo. Detalle y
+  reproducción: `docs/B18_009_STATUS.md`. B18-009 **no se declara cerrado**.
+
+### Añadido — B18-015 (carga reactiva del altavoz, física en el solve; NFB Reactiva bloqueada hasta B18-009)
+
+- **Carga eléctrica real en el secundario del OT (no un filtro post).**
+  `stages/speaker_impedance.rs` define `ElectricalLoadConfig`
+  (`Resistive { ohms }` = fallback declarado con la 8 Ω del JSON, y
+  `LumpedEquivalent(LumpedSpeakerParameters)`) y el estado discretizado
+  `ElectricalLoad` (puerto Norton `i = G·v + Ieq`, TPT en toda la red).
+  `OutputTransformerModel` resuelve la rama reflejada con la carga dinámica
+  (DCR de secundario en serie, reflejo N², fuente Norton reflejada) y publica
+  la tensión de terminal y la **corriente de secundario** del mismo avance.
+- Parámetros `estimated` en el overlay con método y fecha
+  (`speaker.reactive_load.*`, los cinco juntos o error explícito): red
+  `Re=6.5 Ω + Le=0.8 mH + (Res=23.5 Ω ∥ Les=69.3 mH ∥ Ces=180.6 µF)` →
+  fs=45 Hz, Q=1,2, pico |Z|≈30 Ω, |Z|(200 Hz)≈8,2 Ω. **No medido** del
+  Cleveland; prioriza la regla «sin inventar Z(f)».
+- Contraste independiente SPICE: golden
+  `assets/fixtures/reference/speaker_load/speaker_load_spice.csv`
+  (ngspice 47 + verificación analítica numérica; manifiesto con SHA-256).
+  Motor vs golden: < 0,5 dB / < 10° en 20 Hz–20 kHz a 4×; transimpedancia
+  `|v_sec/i_sec| = |Z(f)|` verificada en 45/200/1000 Hz.
+- Selección por control moderno (`RuntimeControls::speaker_load`), con
+  fallback documentado a la resistiva: si el overlay no trae parámetros **o
+  la NFB provisional está activa** (la combinación con carga reactiva es
+  inestable: ciclo límite ~24 kHz medido; cierre en B18-009),
+  `effective_speaker_load()` informa de la activa. Exposición: parámetro del
+  plugin `load_model` (Advanced; ID `nominal`/`rlc_estimated`) y
+  `b18n-render --load resistive|lumped`.
+- **El sonido por defecto no cambia**: con carga resistiva el camino reduce
+  exactamente a las fórmulas de B18-013; render E2E igual al baseline
+  (diferencia máxima 1,2e-7 por reorden aritmético) → sin `ALGORITHM_VERSION`.
+
+### Corregido — B18-013 (OT-471 lineal con pérdidas y parásitos, cambio audible)
+
+- **Una sola implementación del transformador.** `stages/output_transformer.rs`
+  pasa a `OutputTransformerModel` (el `Ideal` del Hito C queda como
+  regresión/fallback explícito) y `PushPullStage::solve_plates()` resuelve la
+  **red diferencial** en el mismo Newton: `2·Rh` en serie con
+  `R_core + (Lm ∥ (Lleak + N²·(Rcarga+DCR_sec))) ∥ Cp`. El secundario se acopla
+  a la tensión del nodo interno F (EMF del flujo): la continua no se
+  transfiere y el paso alto artificial de 1 Hz desaparece del modo lineal.
+- Parámetros `estimated` (overlay, con método/fecha): `Lm = 28,7 H` (esquina
+  baja a 25 Hz con la carga reflejada), `Lleak = 12 mH` (agudos ≈64 kHz),
+  `Cp = 100 pF`, `R_core = 500 Ω` (pérdidas del camino de flujo, τ ≈ 57 ms) y
+  cota provisional de flujo de 0,12 A (placeholder de saturación hasta
+  B18-014). Integración: Euler atrás en los inductores (memoria acotada,
+  robustez del solve; desviación HF declarada) y TPT en Cp.
+- Solver de placas: rango `[−2·B, 3·B]` (flyback), paso ≤ 80 V, 200
+  iteraciones y criterio de residuo 1 mV (≈ −100 dB). El test de estrés de
+  alias (2 V/7,3 kHz, 4×) pasa de 121.364 fallos del primer prototipo a
+  **0 fallos** 1×/2×/4×; cota absoluta de 1× re-basada a ≤ −12 dBc (medido
+  −13,5; 4× −33,5).
+- **Contraste SPICE independiente** (`scripts/spice/b18n_ot471_linear.cir`,
+  `output_transformer_reference.py`, validado contra analítica < 1e-3):
+  golden `assets/fixtures/reference/output_transformer/ot471_linear_spice.csv`
+  (93 frecuencias) con README y manifiesto. Test nuevo
+  `crates/b18n-dsp/tests/output_transformer_ac.rs`: peor desviación medida en
+  20 Hz–20 kHz **0,091 dB / 0,97°** a la tasa 4×, esquina LF y polaridad.
+- `ALGORITHM_VERSION` → `…-supply-ot471-linear-v1`; render E2E: pico 4,7902
+  → 4,9170, RMS 1,4370 → 1,4761, offset +0,0029 → +0,0016, latencia 47 (sin
+  cambio); CPU ≈27,2 µs/muestra (guardia 32 µs sin cambio).
+
+### Corregido — B18-012 (fuente dinámica 5AR4 + sag, Hito D, cambio audible)
+
+- **Los rieles dejan de ser rígidos.** Nuevo `stages/power_supply.rs`: red
+  trazada SCH-567 (Hipótesis A, `estimated`) H2 [30 µF, CT/rectificador] → 1k →
+  H1 [40 µF, pantallas] → 10k → H3 [40 µF, triodo] y 22k → H4 [40 µF, previo],
+  más bias 10D6 + 100 µF → −55 V. Rectificador como Thevenin promedio
+  (`Rrect = 150 Ω`, `estimated`; `Vsrc` calibrada a B+ 505 V con el reposo) y
+  bias con `Rb = 15 kΩ` (`estimated`); sin curva 5AR4 ni DCR documentadas.
+  Solve **implícito** (Euler backward 4×4 + bias 1D) por muestra a la tasa
+  efectiva, sin asignaciones; reposo DC resuelto al inicializar (punto fijo
+  rieles↔reposos en 20 iteradas, silencio sin transitorio).
+- **Lazo de corriente cerrado para todas las etapas:** CT y pantallas 7027A,
+  triodo inversor (47 kΩ), previo 6SL7 (resistencias de placa) y pentodo 7199
+  (270 kΩ + 470 kΩ), más retornos de rejilla al bias. Los rieles de una muestra
+  alimentan a la siguiente (`z^-1`); el error frente al solve simultáneo se
+  cuantifica en el test (<0,05 V a 100 Hz con τ ≈ 22 ms >> dt).
+- **Contraste SPICE independiente** (`scripts/spice/b18n_power_supply_1967.cir`,
+  `power_supply_reference.py`): DC 505,0/495,1/472,1/393,9/−55,0 V (Rust ±2 V);
+  escalón +20 mA en H2 con sag ≈ 2,9 V (Rust 1,5–4,5 V) y recuperación.
+  Goldens en `assets/fixtures/reference/power_supply/` con README y manifiesto.
+- Test nuevo `crates/b18n-dsp/tests/power_supply_transient.rs` (9 tests: cero/nominal,
+  DC vs ngspice, escalón, ráfagas 40/60/100 Hz, energía RC, lag, reset,
+  integración en motor con sag y recuperación). Reposo convergido del modelo:
+  B+ 505, H1 495, H3 472, H4 394 V; CT 83 mA, pantallas 3 mA, triodo 2,3 mA,
+  previo 4,6 mA.
+- `ALGORITHM_VERSION` → `…-7027a-datasheet-supply-v1`; render E2E: pico 4,8224
+  → 4,7902, RMS 1,4463 → 1,4370, latencia 47 (sin cambio); CPU ≈27–29,5
+  µs/muestra, guardia 28 → **32 µs** (sobrecoste fuente ≈2–4 µs + varianza).
+
+### Corregido — B18-010/011 (7027A desde el datasheet RCA, cambio audible)
+
+- **La 7027A deja de ser un proxy 6L6GC.** Se ajustó el modelo Koren a las
+  curvas digitalizadas del datasheet RCA 7027-A (8-59) y a sus tablas (clase A1
+  y bias fija). Digitalización reproducible con `scripts/digitize_7027a_curves.py`
+  (`assets/fixtures/reference/power_7027a/7027a_rca_digitized.csv`, 315 puntos
+  con procedencia en el manifiesto) y ajuste con `scripts/fit_7027a_model.py`:
+  `mu` 9,0 (cota: conducción en el reposo B-18N de 505/500/−55 V), `ex` 1,2983,
+  `kg1` 1087,9, `kp` 42,41, `kvb` 38,35 V. Errores contra RCA: familia de placa
+  p05 mediana 2,9 % (peor 23 %), transferencia p07 mediana 9 %; clase A1 Ip +15 %,
+  gm +14 %, rp +27 %. Reposo del modelo: ≈44 mA/tubo (Pd ≈22 W).
+- **Corriente de pantalla dependiente de la placa (B18-011).** La forma Koren
+  `Ig2(Vs, Vg)` sin `Vp` no reproduce el datasheet (la tabla exige `ex`≈0,8 y la
+  curva `ex`≈1,9); se calibró la **división de corriente**
+  `Ig2 = Ip·(F + G·e^(−Vp/V0))` con `F`=0,0160, `G`=0,1425, `V0`=255 V: p07 Ig2
+  mediana 7,8 % (peor 14 %), forma de p06 mediana 14 % (la joroba fina <70 V
+  queda documentada). El `Max.-Signal Grid-No.2 Current` de la tabla es media de
+  ciclo y no entra en el ajuste. Con `screen_ratio_floor = 0` (7199, respaldo
+  6L6GC) el modelo de pantalla conserva la forma Koren publicada.
+- **API del pentodo:** `screen_current(plate_v, screen_v, grid_v)` (antes sin
+  `Vp`), nuevo `screen_current_with_slopes()` y `d_screen_d_plate` en
+  `PentodeCurrents`; el Newton del 7199 no cambia (su floor es 0).
+- Test nuevo: `crates/b18n-dsp/tests/power_7027a_curves.rs` (familia p05,
+  transferencias p07, forma p06, anclas tabuladas y reposo del par con límites
+  RCA). `ALGORITHM_VERSION` → `…-7199-coupled-speaker-7027a-datasheet-v1`;
+  render E2E: pico 4,8155 → 4,8224, RMS 1,4433 → 1,4463, latencia 47 (sin
+  cambio); CPU ≈25,2 µs/muestra (guardia 28, sin cambio).
+
 ### Corregido — B18-008 (acoplo dinámico del inversor 7199, cambio audible)
 
 - **El acoplo pentodo→triodo se resuelve acoplado por muestra** (Newton 6D,

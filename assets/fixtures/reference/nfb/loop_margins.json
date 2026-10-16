@@ -1,0 +1,103 @@
+{
+  "method": "Unloaded sensing tap injection; continuous AC, frozen rails, 1 Hz to 100 MHz, ngspice 47",
+  "results": [
+    {
+      "load": "nominal",
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.227411828835812,
+          "direction": "rising",
+          "phase_margin_deg": 329.5785089703491
+        },
+        {
+          "frequency_hz": 212398.31640665626,
+          "direction": "falling",
+          "phase_margin_deg": -55.38099553548989
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 150854.12626287036,
+          "gain_margin_db": -11.226837628249104
+        }
+      ]
+    },
+    {
+      "load": "reactiva",
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.20452438990502,
+          "direction": "rising",
+          "phase_margin_deg": 355.1683729225425
+        },
+        {
+          "frequency_hz": 324826.81866035395,
+          "direction": "falling",
+          "phase_margin_deg": -9.540459560661787
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 247030.31514021396,
+          "gain_margin_db": -4.949000710123965
+        },
+        {
+          "frequency_hz": 4710548.838731685,
+          "gain_margin_db": 70.86640539040428
+        },
+        {
+          "frequency_hz": 14928046.763391003,
+          "gain_margin_db": 76.80103894152651
+        }
+      ]
+    }
+  ],
+  "transients": [
+    {
+      "load": "nominal",
+      "pulse_volts": 1e-05,
+      "max_timestep_seconds": 1e-07,
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_secondary_v": 0.0004532828544478
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_secondary_v": 15.03785254911
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_secondary_v": 15.09300473087
+        }
+      ],
+      "limitation": "Reference tube grid-conduction branches omitted; large-signal amplitudes are diagnostic, not a hardware prediction."
+    },
+    {
+      "load": "reactiva",
+      "pulse_volts": 1e-05,
+      "max_timestep_seconds": 1e-07,
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_secondary_v": 0.0004687329884863
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_secondary_v": 40.94937136883
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_secondary_v": 40.76143620555
+        }
+      ],
+      "limitation": "Reference tube grid-conduction branches omitted; large-signal amplitudes are diagnostic, not a hardware prediction."
+    }
+  ]
+}

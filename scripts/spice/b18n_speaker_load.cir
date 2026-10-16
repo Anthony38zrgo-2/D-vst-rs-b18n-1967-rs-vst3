@@ -1,0 +1,37 @@
+* B-18N 1967 - OT-471 lineal + carga RLC estimada del altavoz de 18" (B18-015)
+* Transformador: SCH-567 (OT-471: 4300 ohm placa-placa, 8/16 ohm, DCR 300 / 0.4 ohm)
+*   y parasitos estimated del overlay: Lm=28.7 H, Lleak=12 mH, Cp=100 pF, R_core=500 ohm.
+* Fuente Thevenin Rs=45 kohm = 2*rp(7027A, datasheet RCA clase A1).
+* Carga (overlay speaker.reactive_load.*, estimated; NO medida):
+*   Re=6.5 ohm, Le=0.8 mH, y rama de movimiento Res=23.5 ohm || Les=69.3 mH || Ces=180.6 uF
+*   (fs = 45 Hz, Q = 1.2, pico |Z| = 30 ohm).
+* Red del motor entre a-b (tras las dos medias DCR): rama de flujo R_core + Lm,
+* rama reflejada Lleak + N^2*(carga + DCR_sec) por el transformador ideal, Cp placas.
+* Convencion del motor: id positivo -> secundario negativo (vsec = -N*i_ref*Zcarga);
+* vsec se mide en el terminal del altavoz (nodo s4).
+Vd   vs 0 AC 1
+Rs   vs p1 45k
+Rdc1 p1 a 150
+Rdc2 b 0 150
+Rcore a f 500
+Lm   f b 28.7
+Cp   a b 100p
+Ll   f g 12m
+* Transformador ideal n = 23.18 (secundario de 8 ohm)
+Esec s1 0 b g {1/23.18}
+Vsense s1 s2 0
+Rdsec s2 s4 0.4
+* Carga equivalente estimada del altavoz: Re + Le + (Res || Les || Ces)
+Re   s4 s5 6.5
+Le   s5 m  0.8m
+Res  m  0 23.5
+Les  m  0 0.0693
+Ces  m  0 180.6u
+Fpri g b Vsense {-1/23.18}
+.ac dec 20 5 200k
+.control
+set numdgt=12
+run
+wrdata b18n_speaker_load_ac.txt vm(s4) vp(s4)
+.endc
+.end

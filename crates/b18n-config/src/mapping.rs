@@ -121,6 +121,10 @@ pub fn convert_to_circuit(raw: &HistoricalB18nJson) -> Result<CircuitDefinition,
             winding_inductance_h: raw.output_transformer.winding_inductance_h,
             leakage_inductance_h: raw.output_transformer.leakage_inductance_h,
             parasitic_capacitance_f: raw.output_transformer.parasitic_capacitance_f,
+            // Parásitos del OT-471 (B18-013): no están en el JSON canónico;
+            // llegan del overlay de calibración (`estimated`).
+            core_loss_ohms: None,
+            magnetizing_current_limit_a: None,
             negative_feedback: NegativeFeedbackValues {
                 present: raw.output_transformer.negative_feedback.present,
                 resistor_from_secondary_ohms_visible: raw
@@ -157,6 +161,9 @@ pub fn convert_to_circuit(raw: &HistoricalB18nJson) -> Result<CircuitDefinition,
                 .power_supply
                 .dropping_resistor_values_seen_ohms
                 .clone(),
+            // La dinámica B18-012 llega del overlay `supply.*` (estimated).
+            rectifier_series_ohms: None,
+            bias_series_ohms: None,
         },
         speaker: SpeakerValues {
             nominal_diameter_inches: raw.cabinet.nominal_speaker_diameter_inches,
@@ -164,6 +171,9 @@ pub fn convert_to_circuit(raw: &HistoricalB18nJson) -> Result<CircuitDefinition,
             cabinet_type: raw.cabinet.cabinet_type.clone(),
             impedance_curve_available: raw.cabinet.speaker_impedance_curve.is_some(),
             measured_ir_available: raw.cabinet.measured_ir.is_some(),
+            // El equivalente RLC estimado del altavoz (B18-015) llega del
+            // overlay `speaker.reactive_load.*`; el JSON canónico no lo trae.
+            lumped_equivalent: None,
         },
         // Los modelos de válvula llegan del overlay de calibración
         // (`apply_embedded_calibration` o `CalibrationFile::apply_to`).

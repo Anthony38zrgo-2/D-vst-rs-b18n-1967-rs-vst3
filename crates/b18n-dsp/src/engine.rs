@@ -13,13 +13,16 @@ use std::fmt;
 
 use crate::audio_context::ProcessSpec;
 use crate::circuit::CircuitDefinition;
-use crate::controls::{volume_fraction, InputChannel, RuntimeControls};
+use crate::controls::{volume_fraction, InputChannel, RuntimeControls, SpeakerLoadSelection};
 use crate::numerics::oversampling::Oversampler;
 use crate::stages::channel_mixer::ChannelMixer;
 use crate::stages::input::{InputJackNetwork, InputStage};
+use crate::stages::output_transformer::OutputTransformerConfig;
 use crate::stages::phase_splitter::{PhaseInverter7199, PhaseInverterOperatingPoint};
 use crate::stages::power_7027a::{PowerStageConfig, PushPullStage};
+use crate::stages::power_supply::{PowerSupply, SupplyLoad};
 use crate::stages::speaker::SpeakerCabinet;
+use crate::stages::speaker_impedance::ElectricalLoadConfig;
 use crate::stages::tone_stack::{
     ToneStackControls, ToneStackDesign, ToneStackError, ToneStackProcessor,
 };
@@ -30,33 +33,12 @@ use crate::stages::tube_models::{KorenPentodeModel, KorenTriodeModel};
 use crate::state::{EngineState, OperatingPoint, StageOperatingPoint};
 use crate::utilities::db::db_to_gain;
 use crate::utilities::filters::OnePoleLowPass;
-use crate::utilities::smoothing::SmoothedValue;
 
-/// Compensación del lazo de NFB (aproximación declarada): el modelo no
-/// incluye los parásitos de alta frecuencia del tubo ni del transformador,
-/// que en el amplificador real limitan la ganancia de lazo. Se modela con un
-/// polo en el camino de realimentación; el margen se mide en `nfb_stability`.
-///
-/// **B18-002:** el polo se construye con la **tasa de proceso efectiva**
-/// (`sample_rate_hz × oversampling`), la misma a la que `LinearChain::process_sample`
-/// hace avanzar la realimentación. La construcción anterior usaba la tasa base
-/// mientras el filtro integraba `oversampling` veces por muestra del host, de
-/// modo que el corte efectivo escalaba con el factor de sobremuestreo
-/// (≈5 kHz a 2× y ≈10 kHz a 4×, en lugar de 2,5 kHz).
-///
-/// Además, la discretización de `OnePoleLowPass` pasó de Euler implícito (polo
-/// apareado) a **TPT/bilineal con prewarp**: el corte físico es exacto a
-/// cualquier tasa y la fase en HF se aproxima al RC analógico. El impacto de
-/// ambos pasos se midió por separado con la comparación 1×/2×/4× de
-/// `nfb_rate_invariance.rs` (dispersión final ≤0,64 dB/8,1° hasta 2,5 kHz;
-/// antes 3,5 dB/20° a 48 kHz).
-///
-/// El valor de 2,5 kHz sigue siendo **provisional**: no es una característica
-/// verificada del B-18N. Con el solver exacto del inversor 7199 el lazo
-/// idealizado se acercaba a inestabilidad a Nyquist; 2,5 kHz da margen en
-/// 44,1–192 kHz y mantiene la reducción de banda media (≈0,14×).
-/// Cambio audible: `ALGORITHM_VERSION` actualizada.
+/// Provisional NFB compensation retained: the B18-009 physical candidate
+/// fails independent loop-margin/transient validation (docs/B18_009_STATUS.md).
+/// Runs at the effective oversampled rate; one process-sample feedback delay.
 const FEEDBACK_COMPENSATION_CUTOFF_HZ: f64 = 2_500.0;
+use crate::utilities::smoothing::SmoothedValue;
 
 /// Tiempo de suavizado de mandos (guía §6.4: 5–30 ms). Es un tiempo **físico**:
 /// los suavizados avanzan una vez por muestra de la tasa de proceso, por lo que
@@ -80,6 +62,10 @@ pub enum EngineError {
     MissingTubeModel,
     /// Faltan datos trazados del inversor 7199 (errata no aplicada).
     MissingInverterData,
+    /// Falta la dinámica de la fuente B18-012 (`supply.*` sin calibrar).
+    MissingSupplyData,
+    /// El modelo del OT-471 está incompleto: Lm/Lleak/Cp a medias (B18-013).
+    InvalidTransformerModel,
     /// El reposo no converge: no se activa audio con un punto inválido.
     OperatingPointNotConverged,
 }
@@ -102,6 +88,15 @@ impl fmt::Display for EngineError {
             Self::MissingInverterData => write!(
                 f,
                 "faltan datos trazados del inversor 7199 (150 kΩ/10 M/3.3 M y carril del triodo)"
+            ),
+            Self::MissingSupplyData => write!(
+                f,
+                "falta la dinámica de la fuente B18-012 (supply.rectifier/bias.series_ohms)"
+            ),
+            Self::InvalidTransformerModel => write!(
+                f,
+                "el modelo del OT-471 está incompleto (Lm, Lleak y Cp deben estar los tres \
+                 presentes o los tres ausentes)"
             ),
             Self::OperatingPointNotConverged => {
                 write!(f, "el punto de reposo no converge; no se activa el audio")
@@ -191,6 +186,12 @@ impl B18nEngine {
         }
     }
 
+    /// Carga eléctrica activa del secundario (B18-015; diagnóstico).
+    #[must_use]
+    pub fn effective_speaker_load(&self) -> ElectricalLoadConfig {
+        self.chain.power.load_config()
+    }
+
     /// Restablece al estado de reposo resuelto al inicializar.
     ///
     /// Sin asignaciones: los buffers del MNA y del sobremuestreador se
@@ -256,6 +257,12 @@ impl B18nEngine {
         self.oversampler.latency_samples()
     }
 
+    /// Rieles actuales de la fuente dinámica (diagnóstico B18-012).
+    #[must_use]
+    pub fn supply_rails(&self) -> crate::stages::power_supply::SupplyRails {
+        self.chain.supply_rails()
+    }
+
     /// Procesa un bloque mono `input` hacia `output`.
     pub fn process_mono(&mut self, input: &[f32], output: &mut [f32]) {
         let frames = input.len().min(output.len());
@@ -318,11 +325,17 @@ struct LinearChain {
     mixer: ChannelMixer,
     inverter: PhaseInverter7199,
     power: PushPullStage,
+    /// Fuente dinámica B18-012 (Hito D): rieles por muestra con `z^-1`.
+    supply: PowerSupply,
     input_trim_db: SmoothedValue,
     output_trim_db: SmoothedValue,
     input_gain: MappedControl,
     output_gain: MappedControl,
     channel: InputChannel,
+    /// Carga eléctrica nominal (fallback) y equivalente RLC estimado (B18-015,
+    /// `None` si el overlay no lo trae); `set_targets` selecciona entre ambas.
+    load_resistive: ElectricalLoadConfig,
+    load_lumped: Option<ElectricalLoadConfig>,
     /// Realimentación negativa (separación explícita `z^-1`, aproximación
     /// declarada): la muestra de la toma de 16 Ω se usa en el sample siguiente
     /// de la tasa de proceso efectiva (no del host); el `z^-1` y el polo de
@@ -335,19 +348,34 @@ struct LinearChain {
 }
 
 impl LinearChain {
+    /// Demanda instantánea hacia la fuente (últimas corrientes resueltas).
+    fn current_load(&self) -> SupplyLoad {
+        SupplyLoad {
+            ct_a: self.power.total_plate_current_a(),
+            screen_a: self.power.total_screen_current_a(),
+            triode_a: self.inverter.triode_load_a(),
+            preamp_a: self.channel_1.supply_current_a()
+                + self.channel_2.supply_current_a()
+                + self.inverter.preamp_load_a(),
+            bias_a: self.power.total_grid_current_a(),
+        }
+    }
+}
+
+impl LinearChain {
     fn new(circuit: &CircuitDefinition, spec: &ProcessSpec) -> Result<Self, EngineError> {
         let processing_rate = spec.sample_rate_hz * f64::from(spec.oversampling);
         let tone_design = ToneStackDesign::from_circuit(circuit)?;
 
         // Redes de jack trazadas (B18-007): CH1 distingue `bass` (con el shunt
         // de 100 kΩ del jack `guitar` libre) de `guitar`; CH2 es `instrument`.
-        let channel_1 = ChannelChain::new(
+        let mut channel_1 = ChannelChain::new(
             circuit,
             &tone_design,
             processing_rate,
             InputJackNetwork::for_channel(InputChannel::Bass),
         )?;
-        let channel_2 = ChannelChain::new(
+        let mut channel_2 = ChannelChain::new(
             circuit,
             &tone_design,
             processing_rate,
@@ -356,7 +384,7 @@ impl LinearChain {
 
         let mixer = ChannelMixer::new(circuit.channel.channel_mixer_resistor_ohms);
 
-        let inverter = PhaseInverter7199::from_circuit(circuit, processing_rate)
+        let mut inverter = PhaseInverter7199::from_circuit(circuit, processing_rate)
             .ok_or(EngineError::MissingInverterData)?;
         if !inverter.operating_point_solved() {
             return Err(EngineError::OperatingPointNotConverged);
@@ -366,19 +394,45 @@ impl LinearChain {
             .tube_models
             .koren_7027a
             .ok_or(EngineError::MissingTubeModel)?;
+        // Carga eléctrica del secundario (B18-015): la resistencia nominal del
+        // JSON es el fallback declarado; el equivalente RLC estimado llega del
+        // overlay de calibración (`speaker.reactive_load.*`) y se selecciona
+        // por control (`RuntimeControls::speaker_load`).
+        let load_resistive = ElectricalLoadConfig::Resistive {
+            ohms: circuit.speaker.nominal_load_ohms,
+        };
+        let load_lumped = circuit
+            .speaker
+            .lumped_equivalent
+            .map(ElectricalLoadConfig::LumpedEquivalent)
+            .filter(ElectricalLoadConfig::is_physically_valid);
         let mut power = PushPullStage::new(
             KorenPentodeModel::new(pentode),
             PowerStageConfig {
                 supply_v: circuit.power_supply.bplus_idle_vdc,
                 screen_supply_v: circuit.power_stage.screen_voltage_v_nominal,
                 bias_v: circuit.power_stage.control_grid_voltage_v_nominal,
-                plate_to_plate_ohms: circuit
-                    .output_transformer
-                    .primary_plate_to_plate_ohms_nominal,
-                dc_primary_half_ohms: circuit.output_transformer.dc_primary_winding_ohms / 2.0,
-                dc_secondary_ohms: circuit.output_transformer.dc_secondary_8ohm_winding_ohms,
-                turns_ratio: circuit.output_transformer.turns_ratio_primary_to_8ohm,
-                load_ohms: circuit.speaker.nominal_load_ohms,
+                // OT-471 (B18-013): Lm/Lleak/Cp llegan del overlay de
+                // calibración (`estimated`); sin ellos se usa el modo ideal.
+                transformer: OutputTransformerConfig {
+                    primary_plate_to_plate_ohms_nominal: circuit
+                        .output_transformer
+                        .primary_plate_to_plate_ohms_nominal,
+                    turns_ratio_8ohm: circuit.output_transformer.turns_ratio_primary_to_8ohm,
+                    turns_ratio_16ohm: circuit.output_transformer.turns_ratio_primary_to_16ohm,
+                    dc_primary_winding_ohms: circuit.output_transformer.dc_primary_winding_ohms,
+                    dc_secondary_8ohm_winding_ohms: circuit
+                        .output_transformer
+                        .dc_secondary_8ohm_winding_ohms,
+                    load: load_resistive,
+                    magnetizing_inductance_h: circuit.output_transformer.winding_inductance_h,
+                    leakage_inductance_h: circuit.output_transformer.leakage_inductance_h,
+                    parasitic_capacitance_f: circuit.output_transformer.parasitic_capacitance_f,
+                    core_loss_ohms: circuit.output_transformer.core_loss_ohms,
+                    magnetizing_current_limit_a: circuit
+                        .output_transformer
+                        .magnetizing_current_limit_a,
+                },
                 grid_stopper_ohms: circuit.power_stage.grid_stopper_ohms_each,
                 grid_return_ohms: circuit.power_stage.grid_return_ohms_each,
                 // Impedancias de fuente reales del inversor (placa y cátodo).
@@ -387,9 +441,60 @@ impl LinearChain {
                 coupling_farads: circuit.power_stage.inverter_to_grid_coupling_farads_each,
                 sample_rate_hz: processing_rate,
             },
-        );
+        )
+        .map_err(|_| EngineError::InvalidTransformerModel)?;
         if !power.solve_operating_point() {
             return Err(EngineError::OperatingPointNotConverged);
+        }
+
+        // --- Fuente dinámica B18-012: punto fijo rieles <-> reposos ---
+        // Primera pasada nominal -> corrientes de reposo -> fuente calibrada
+        // a B+ 505 V -> rieles DC -> re-solve de etapas. Se itera para que el
+        // reset de la fuente coincida con los rieles de los solves (silencio
+        // sin transitorio ni deriva).
+        let mut supply = {
+            let idle = SupplyLoad::idle(
+                2.0 * power.idle_plate_current_a(),
+                2.0 * power.idle_screen_current_a(),
+                inverter.triode_load_a(),
+                channel_1.supply_current_a()
+                    + channel_2.supply_current_a()
+                    + inverter.preamp_load_a(),
+            );
+            PowerSupply::from_circuit(circuit, processing_rate, idle)
+                .ok_or(EngineError::MissingSupplyData)?
+        };
+        // Punto fijo rieles<->reposos (B18-012): ~20 iteraciones para que el
+        // reset de la fuente coincida con los rieles de los solves a <1 µV
+        // (silencio sin transitorio ni deriva; solo coste de init, no RT).
+        for _ in 0..20 {
+            let rails = supply.rails();
+            channel_1.set_supply_v(rails.preamp_v);
+            channel_2.set_supply_v(rails.preamp_v);
+            inverter.set_rails(rails.preamp_v, rails.triode_v);
+            power.set_rails(rails.bplus_ct_v, rails.screen_v, rails.bias_v);
+            if !channel_1.refresh_operating_point() {
+                return Err(EngineError::OperatingPointNotConverged);
+            }
+            if !channel_2.refresh_operating_point() {
+                return Err(EngineError::OperatingPointNotConverged);
+            }
+            if !inverter.refresh_operating_point() {
+                return Err(EngineError::OperatingPointNotConverged);
+            }
+            if !power.solve_operating_point() {
+                return Err(EngineError::OperatingPointNotConverged);
+            }
+            let idle = SupplyLoad::idle(
+                2.0 * power.idle_plate_current_a(),
+                2.0 * power.idle_screen_current_a(),
+                inverter.triode_load_a(),
+                channel_1.supply_current_a()
+                    + channel_2.supply_current_a()
+                    + inverter.preamp_load_a(),
+            );
+            supply = PowerSupply::from_circuit(circuit, processing_rate, idle)
+                .ok_or(EngineError::MissingSupplyData)?;
         }
 
         let feedback_enabled = circuit.output_transformer.negative_feedback.present
@@ -398,7 +503,6 @@ impl LinearChain {
                 .negative_feedback
                 .resistor_from_secondary_ohms_visible
                 > 0.0;
-        // La toma de 16 Ω entrega `N8/N16` veces la tensión de la carga de 8 Ω.
         let feedback_tap_gain = circuit.output_transformer.turns_ratio_primary_to_8ohm
             / circuit.output_transformer.turns_ratio_primary_to_16ohm;
 
@@ -409,6 +513,7 @@ impl LinearChain {
             mixer,
             inverter,
             power,
+            supply,
             // 15 ms **físicos** a cualquier factor: `next_value()` avanza una
             // vez por muestra de proceso, de modo que escalar el tiempo por el
             // sobremuestreo lo alargaba a 30/60 ms (B18-004). Mismo criterio
@@ -418,17 +523,12 @@ impl LinearChain {
             input_gain: MappedControl::new(),
             output_gain: MappedControl::new(),
             channel: InputChannel::default(),
+            load_resistive,
+            load_lumped,
             feedback_enabled,
             feedback_tap_gain,
-            // La fase del arrollamiento de 16 Ω no está documentada; se asume
-            // la que produce realimentación **negativa** (el amplificador real
-            // la tiene). El test de lazo lo verifica.
             feedback_polarity: -1.0,
             feedback_state: 0.0,
-            // El polo se construye con la **tasa de proceso efectiva**: este es
-            // el ritmo al que `process_sample` avanza la realimentación, así que
-            // el corte físico es el mismo a 1×/2×/4× (B18-002; antes se construía
-            // con la tasa base y el corte efectivo escalaba con el sobremuestreo).
             feedback_lowpass: OnePoleLowPass::new(FEEDBACK_COMPENSATION_CUTOFF_HZ, processing_rate),
         })
     }
@@ -454,6 +554,24 @@ impl LinearChain {
         self.output_trim_db.set_target(controls.output_trim_db);
         self.channel_1.set_targets(controls, true);
         self.channel_2.set_targets(controls, false);
+        // Carga eléctrica del secundario (B18-015): el equivalente estimado
+        // solo se aplica si existe; sin él cae a la resistencia nominal
+        // (fallback documentado, no se inventa una Z(f)).
+        let requested = match controls.speaker_load {
+            SpeakerLoadSelection::NominalResistance => self.load_resistive,
+            // B18-009 candidate is not production-ready; keep the measured guard.
+            SpeakerLoadSelection::EstimatedLumped
+                if self.load_lumped.is_none() || self.feedback_enabled =>
+            {
+                self.load_resistive
+            }
+            SpeakerLoadSelection::EstimatedLumped => {
+                self.load_lumped.unwrap_or(self.load_resistive)
+            }
+        };
+        if self.power.load_config() != requested {
+            self.power.set_load(requested);
+        }
         if self.channel != controls.channel {
             // Conmutación de jack (B18-007): `bass` y `guitar` comparten el
             // canal 1 pero cargan la rejilla distinto (shunt del jack libre).
@@ -476,11 +594,14 @@ impl LinearChain {
         self.mixer = other.mixer;
         self.inverter = other.inverter.clone();
         self.power = other.power.clone();
+        self.supply = other.supply.clone();
         self.input_trim_db = other.input_trim_db;
         self.output_trim_db = other.output_trim_db;
         self.input_gain = other.input_gain;
         self.output_gain = other.output_gain;
         self.channel = other.channel;
+        self.load_resistive = other.load_resistive;
+        self.load_lumped = other.load_lumped;
         self.feedback_enabled = other.feedback_enabled;
         self.feedback_tap_gain = other.feedback_tap_gain;
         self.feedback_polarity = other.feedback_polarity;
@@ -489,6 +610,16 @@ impl LinearChain {
     }
 
     fn process_sample(&mut self, sample: f32) -> f32 {
+        // Fuente dinámica B18-012: los rieles de la muestra anterior
+        // alimentan a las etapas (`z^-1` a la tasa efectiva); tras procesar se
+        // avanza la fuente con la demanda medida (sin mirar al futuro).
+        let rails = self.supply.rails();
+        self.power
+            .set_rails(rails.bplus_ct_v, rails.screen_v, rails.bias_v);
+        self.inverter.set_rails(rails.preamp_v, rails.triode_v);
+        self.channel_1.set_supply_v(rails.preamp_v);
+        self.channel_2.set_supply_v(rails.preamp_v);
+
         let input_gain = self.input_gain.get(self.input_trim_db.next_value(), |db| {
             f64::from(db_to_gain(db))
         });
@@ -502,10 +633,6 @@ impl LinearChain {
         let channel_1 = self.channel_1.process(channel_1_input);
         let channel_2 = self.channel_2.process(channel_2_input);
         let mixed = self.mixer.process(channel_1, channel_2);
-        // Inversor real de la 7199 con realimentación negativa al cátodo del
-        // pentodo. La separación es explícita `z^-1`: la muestra de la toma de
-        // 16 Ω (del sample anterior de la tasa de proceso) se inyecta en el
-        // cátodo. Este `z^-1` no es un retardo de muestra del host.
         let feedback = if self.feedback_enabled {
             self.feedback_lowpass.process(self.feedback_state) * self.feedback_polarity
         } else {
@@ -516,12 +643,21 @@ impl LinearChain {
         if self.feedback_enabled {
             self.feedback_state = secondary * self.feedback_tap_gain;
         }
+        // Cierra el lazo de corriente: todas las etapas contribuyen.
+        let load = self.current_load();
+        self.supply.advance(load);
         let output_gain = self
             .output_gain
             .get(self.output_trim_db.next_value(), |db| {
                 f64::from(db_to_gain(db))
             });
         (secondary * output_gain) as f32
+    }
+
+    /// Rieles actuales de la fuente (diagnóstico B18-012).
+    #[allow(dead_code)]
+    fn supply_rails(&self) -> crate::stages::power_supply::SupplyRails {
+        self.supply.rails()
     }
 }
 
@@ -678,6 +814,31 @@ impl ChannelChain {
 
     fn convergence_failures(&self) -> u64 {
         self.triode_1.convergence_failures() + self.triode_2.convergence_failures()
+    }
+
+    /// Riel previo dinámico B18-012 a ambos triodos.
+    fn set_supply_v(&mut self, supply_v: f64) {
+        self.triode_1.set_supply_v(supply_v);
+        self.triode_2.set_supply_v(supply_v);
+    }
+
+    /// Corriente total que el canal pide al carril previo (H4).
+    fn supply_current_a(&self) -> f64 {
+        self.triode_1.supply_current_a() + self.triode_2.supply_current_a()
+    }
+
+    /// Re-resuelve el reposo tras un cambio de riel y actualiza las
+    /// referencias DC del acoplo. Devuelve `false` si no converge.
+    fn refresh_operating_point(&mut self) -> bool {
+        if !self.triode_1.solve_operating_point().converged {
+            return false;
+        }
+        if !self.triode_2.solve_operating_point().converged {
+            return false;
+        }
+        self.plate_1_dc = self.triode_1.plate_voltage();
+        self.plate_2_dc = self.triode_2.plate_voltage();
+        true
     }
 
     fn set_targets(&mut self, controls: &RuntimeControls, channel_one: bool) {

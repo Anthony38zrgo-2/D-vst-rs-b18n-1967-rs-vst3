@@ -1,5 +1,12 @@
 # Supuestos del modelo
 
+**B18-009, actualización 2026-10-16:** las capacitancias RCA de 7199 y
+7027A están trazadas en el overlay, pero solo las consume el candidato
+aislado `OutputNetwork`. No se conectó al motor: márgenes negativos y
+transitorios SPICE, más un caso Rust reactivo fallido, bloquean su integración.
+La respuesta AC sin pico de la exploración anterior no prueba estabilidad.
+Estado y límites completos: [`B18_009_STATUS.md`](B18_009_STATUS.md).
+
 Este documento separa lo que proviene de documentación histórica de lo que es una decisión
 de ingeniería moderna. Nada de la lista «moderno» se presenta como característica del
 hardware de 1967.
@@ -58,11 +65,17 @@ hardware de 1967.
   `assets/fixtures/reference/tone_stack/tone_stack_coupled_spice.csv`.
 - **Ganancia de la cadena:** con el inversor 7199 real (P1.4) la cadena tiene
   ~45× más ganancia que con el inversor ideal del Hito B; el control de salida
-  permite ajustarla. El OT sigue siendo ideal con DCR (bloqueo de continua del
-  transformador no modelado: la asimetría del split-load puede dejar un pequeño
-  offset en el secundario; documentado, P2).
-- **Parasitismos del OT:** `winding_inductance_h`, fugas y capacitancias son `null`; no se
-  inventan (Hito D).
+  permite ajustarla. Desde B18-013 el OT es la red con parásitos (véanse los
+  dos puntos siguientes) y el bloqueo de continua es físico en el modo lineal.
+- **Parasitismos del OT (B18-013):** `winding_inductance_h`,
+  `leakage_inductance_h` y `parasitic_capacitance_f` siguen `null` en el JSON;
+  el **overlay de calibración** los aporta como `estimated` con método y fecha:
+  `Lm = 28,7 H` (inductancia diferencial placa-placa por esquina de baja
+  frecuencia a 25 Hz con la carga reflejada `N8²·(8+0,4) ≈ 4514 Ω`),
+  `Lleak = 12 mH` (esquina de agudos ≈64 kHz) y `Cp = 100 pF` (resonancia con
+  `Lleak` ≈145 kHz; con la fuente pentodo estimada, polo ≈35 kHz). No son
+  medidas del OT-471: son criterios de diseño documentados y sustituibles por
+  una caracterización real sin cambiar la API.
 
 ## Válvulas (Hito C, parte 1)
 
@@ -76,20 +89,45 @@ hardware de 1967.
   0.08 V) y resistencia equivalente de rejilla declarada. No sustituye una
   curva de rejilla medida; su función principal es evitar tensiones de rejilla
   positivas irreales y aportar compresión asimétrica.
-- **Etapa de potencia 7027A (Hito C, parte 2):** modelo Koren de pentodo con
-  corriente de placa y de pantalla y conducción de rejilla suave. Los parámetros
-  son los **publicados de la 6L6GC** (tubo padre de la 7027A según el mapeo de
-  Duncanamps), etiquetados `datasheet` en la calibración; la base de parámetros
-  es la convención `PWR+PWRS` de la publicación, verificada contra el punto
-  típico de la 6L6GC (360 V/250 V/−18 V → ≈54 mA, ≈5.5 mA de pantalla).
-- **Alimentación de la etapa de potencia:** B+ 505 V en la toma central y
-  pantallas a 500 V **rígidas**; la dinámica de B+/bias y el *sag* llegan con
-  el Hito D.
+- **Etapa de potencia 7027A (B18-010/011, 2026-10-14):** modelo Koren de pentodo
+  con corriente de placa y de pantalla y conducción de rejilla suave. Los
+  parámetros ya no son el proxy 6L6GC: se ajustaron con
+  `scripts/fit_7027a_model.py` a **curvas digitalizadas del datasheet RCA
+  7027-A (8-59)** (`assets/fixtures/reference/power_7027a/7027a_rca_digitized.csv`,
+  manifiesto de procedencia) y a sus **tablas** (clase A1 250/250/−14 V →
+  72 mA/5 mA/gm 6000 µmhos/rp 22,5 kΩ; bias fija por tubo 400/300/−25 → 51 mA,
+  450/350/−30 → 47,5 mA, 540/400/−38 → 50 mA). Resultado: p05 mediana 2,9 %
+  (peor 23 %), p07 Ip mediana 9 % (peor 22 %), clase A1 Ip +15 %/gm +14 %;
+  la tabla 450/350/−30 (+26 %) es no monótona en el propio datasheet.
+- **División de pantalla de la 7027A (B18-011):** `Ig2 = Ip·(F + G·e^(−Vp/V0))`
+  con `F` = 0,016, `G` = 0,142 y `V0` = 255 V, ajustada a la curva de pantalla
+  de p07 (Vp=300 V: mediana 7,8 %), a la forma `Ig2(Vp)` de una curva sin
+  etiqueta de p06 (subida en la rodilla; mediana 14 %, peor 41 % por debajo de
+  ~140 V, donde el trazado digitalizado muestra una joroba que la forma
+  exponencial no captura) y a las tablas de reposo (Ig2/Ip = 3,6–5,9 %). El
+  `Max.-Signal Grid-No.2 Current` de la tabla es un **valor medio del ciclo**,
+  no un punto: solo se usa como comprobación de orden. Con los parámetros
+  ausentes (`screen_ratio_floor = 0`) el modelo de pantalla conserva la forma
+  Koren publicada `(Vs/µ + Vg)^Ex/Kg2` (7199 y respaldo 6L6GC).
+- **Cota de `mu` de la 7027A:** el ajuste querría `mu` ≈ 10,2, pero el reposo
+  documentado del B-18N (pantalla ~500 V, bias −55 V) exige `Vs/µ > 55`
+  (conducción) → se acota a 9,0; el coste es la dispersión de p07/p05 arriba
+  citada. Reposo resultante del modelo: ≈44 mA/tubo (Pd ≈22 W < 35 W máximos de
+  la ficha); sin medición hardware que lo confirme, queda como salida del solver.
+- **Alimentación de la etapa de potencia (B18-012 resuelto, 2026-10-15):**
+  fuente dinámica H2 [30 µF, CT] → 1k → H1 [40 µF, pantallas] → 10k → H3
+  [40 µF, triodo] y 22k → H4 [40 µF, previo], más bias 10D6 + 100 µF → −55 V
+  (Hipótesis A trazada del raster, `estimated`). Rectificador 5AR4 como
+  Thevenin promedio (`Rrect = 150 Ω`, `estimated`; `Vsrc` calibrada a B+ 505 V
+  con el reposo) y bias con `Rb = 15 kΩ` (`estimated`); sin curva 5AR4 ni DCR
+  documentadas. Solve implícito por muestra a la tasa efectiva con `z^-1`;
+  reposo convergido: B+ 505, H1 495, H3 472, H4 394 V. Contraste SPICE
+  (`power_supply/`) y tests en `power_supply_transient.rs`.
 - **Acoplo a las rejillas de la 7027A:** se modela el bloqueo de continua del
   acoplo de 0.05 µF (reposo fijado por el retorno de 100 kΩ a −55 V) y la
   excitación AC a través del stopper de 1 kΩ más una impedancia de fuente
-  estimada del inversor (47 kΩ, documentada). La carga real del capacitor
-  (blocking distortion) llega con el Hito D.
+  estimada del inversor (47 kΩ, documentada). La carga de bias de los retornos
+  (`(Vbias−Vg)/100k` por tubo) modula el bias dentro del solve de la fuente.
 - **Modelo Koren de la 7199 (P0.3 resuelto, 2026-10-09):** pentodo y triodo
   ajustados por `scripts/fit_7199_model.py` (scipy, `least_squares`) a las anclas
   del boletín **RCA 7199 DATA 1/2 (7-63)**; origen `datasheet` en la
@@ -165,15 +203,28 @@ hardware de 1967.
   ganancia ≈7× y la ausencia de oscilación sostenida en `nfb_stability.rs` a
   44,1–192 kHz, cargas 8/16 Ω y drives hasta 4 V). El margen formal de lazo
   abierto queda pendiente de B18-008/B18-009.
-- **Bloqueo de continua del OT:** el transformador no pasa continua; se modela
-  con un paso alto de **1 Hz** (cota conservadora asumida; la inductancia real
-  de primario llega con P2). También elimina el offset de secundario.
+- **Bloqueo de continua del OT (B18-013):** el transformador pasa a ser una
+  red con estados. En el modo lineal el bloqueo es físico: el secundario se
+  acopla a la tensión del nodo interno F (el EMF del flujo) y la corriente
+  continua diferencial circula por `Lm`/`R_core`, no por la carga; el paso
+  alto de 1 Hz queda solo en el modo ideal (fallback). El integrador de flujo
+  se acota con la resistencia de pérdidas `R_core = 500 Ω` (τ = Lm/R_core ≈
+  57 ms; < 0,1 dB en la esquina de 25 Hz) y con una **cota provisional de
+  corriente de magnetización de 0,12 A** (1,3× el pico a plena potencia a
+  40 Hz) declarada como *limitador numérico*, no como curva de saturación —
+  la saturación/histéresis del núcleo es B18-014. Los inductores se integran
+  con **Euler atrás** (memoria acotada; la desviación de fase HF es declarada
+  y medida contra SPICE: ≤0,091 dB / 0,97° en 20 Hz–20 kHz a la tasa 4×) y
+  `Cp` con TPT. Contraste del circuito completo en
+  `assets/fixtures/reference/output_transformer/` (ngspice 47 + analítica
+  independiente) y `crates/b18n-dsp/tests/output_transformer_ac.rs`.
 - **Memoria de acoplo PI→7027A:** los 0.05 µF son capacitores TPT por rejilla
   con el retorno de 100 kΩ al bias y conducción de rejilla: el *blocking
   distortion* es real y se recupera (test `blocking_recovers_after_overdrive`).
-- **Pendiente:** la dinámica de B+/bias (Hito D) y las mejoras de P2 (OT no
-  ideal, gabinete). El plugin VST3 (P1.7) está implementado y empaquetado;
-  quedan como pasos manuales el Steinberg Validator y la prueba en DAW.
+- **Pendiente:** las mejoras de P2 restantes (OT no ideal: saturación B18-014;
+  carga reactiva B18-015; cierre NFB B18-009). El plugin VST3 (P1.7) está
+  implementado y empaquetado; quedan como pasos manuales el Steinberg
+  Validator y la prueba en DAW.
 - **Sobremuestreo:** 4× con FIR de media banda (63 taps, Blackman) diseñados al
   inicializar; latencia de **47 muestras** reportada al host (verificada con
   impulso en P1.7). A excitación extrema quedan productos internos de orden muy
@@ -225,3 +276,55 @@ Oversampling choices are 1x / 2x / 4x. The 2x path uses one 63-tap half-band int
 The oversampling enum is now ordered 1x, 2x, 4x. Stable preset IDs 1x and 4x are retained; their normalized endpoint values remain 0 and 1, while the new midpoint selects 2x. Raw numeric enum index for 4x changes from 1 to 2. The new speaker parameter ID is speaker, with direct / 18inch / 15inch variant IDs.
 
 Offline renderer: `--oversampling 2 --speaker 18` (or `15`, or `direct`). Speaker selection is included in the JSON report. Audible algorithm version is updated consistently in plugin and renderer.
+
+## Carga eléctrica del altavoz (B18-015)
+
+Dos modelos de carga separados de la coloración acústica:
+
+1. **Resistencia nominal** (`cabinet.nominal_load_ohms = 8 Ω`, JSON). Es el
+   **fallback declarado** y la carga por defecto en todos los caminos: sin
+   curva de impedancia medida no se sustituye la 8 Ω documentada.
+2. **Equivalente RLC estimado** del altavoz de 18" (overlay
+   `speaker.reactive_load.*`, `estimated`, con método y fecha): red en
+   movilidad eléctrica `Re + Le + (Res ∥ Les ∥ Ces)` con
+   `Re=6.5 Ω` (≈0,8×Znom), `Le=0.8 mH` (esquina 1,3 kHz; típica declarada),
+   pico `|Z(fs)| = 30 Ω a fs = 45 Hz` con `Q = 1,2` (típico de un 8 Ω de
+   graves; **no** medido del Cleveland). Anclas: |Z|(200 Hz) ≈ 8,2 Ω,
+   |Z|(1 kHz) ≈ 7,7 Ω, |Z|(20 kHz) ≈ 100 Ω. Regenerable/regresable con
+   medición futura.
+
+- La carga entra en la rama reflejada del solve del OT como **puerto Norton**
+  (`i = G·v + Ieq`), no filtrando el WAV de salida. Discretizada toda con
+  **TPT/trapezoidal**: la red tiene camino resistivo (`Re`, `Res`), no es un
+  integrador puro como el flujo del OT (que usa Euler atrás por robustez); con
+  Euler atrás la desviación frente al golden SPICE crecía a ≈1,8 dB en
+  20 kHz (carga inductiva ≈100 Ω, ωT ya grande a 4×).
+- Contraste SPICE: `assets/fixtures/reference/speaker_load/`
+  (ngspice 47 sobre `scripts/spice/b18n_speaker_load.cir`; generador con
+  comprobación analítica independiente). Motor vs golden: < 0,5 dB / < 10°
+  en 20 Hz–20 kHz a 4×.
+- La corriente de secundario sale del mismo avance (`secondary_current_a`); a
+  la misma excitación, el pico de resonancia reduce la corriente frente a la
+  zona nominal (v_i_sec coherente con Z(f)).
+- Selección (`RuntimeControls::speaker_load`): `NominalResistance` (por
+  defecto) o `EstimatedLumped`. Sin parámetros en el overlay, la selección
+  estimada cae a la nominal (documentado; no se rellena una Z(f)). Con la
+  **NFB provisional activa** también cae (bloqueo del lazo, ver abajo).
+- **Bloqueo NFB (abierto, mide B18-009):** con el equivalente estimado y la
+  NFB provisional activa (`z^-1` + polo 2,5 kHz), el lazo pierde todo el
+  margen y entra en un ciclo límite sostenido (medido; ver el archivo de
+  problemas en `instrucciones.md`, sección B18-015). Regla vigente: con la
+  **NFB activa** la selección estimada cae a la resistencia nominal
+  (`effective_speaker_load()` lo expone y hay test que lo fija). El modo
+  reactivo se habilita solo con la NFB abierta del circuito
+  (`negative_feedback.present = false`), que es la puerta por la que B18-009
+  reabrirá el lazo físico. Ni el polo a 500 Hz/1,5 kHz ni cascadas de dos
+  polos (2,5 kHz/900/600 Hz) hacen robusta la combinación (los impulsos
+  fuertes se enganchan); no retocar la compensación para «conseguir» el modo.
+- **Residuales del solve sin NFB, con impulsos violentos** (documentados y
+  acotados en `tests/reactive_load.rs`): un salto de 0,2–1,0 Vp deja una
+  ráfqaga de fallos del solve de potencia que se recupera (155–1.347 llamadas
+  de 65.536 según la tasa; seno equivalente limpio). El impulso extremo 4 Vp
+  a 44,1 kHz engancha el solve aislado (~52 % de llamadas) y está
+  `#[ignore]` como `reactive_impulse_extreme_pending_b18_009`. No es
+  problema del lazo; se re-abre en B18-009.
