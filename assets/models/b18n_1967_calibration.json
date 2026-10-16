@@ -339,12 +339,12 @@
       "source": "aproximación del proyecto, documentada"
     },
     "output_transformer.parasitic_capacitance_f": {
-      "value": 1e-10,
+      "value": 1.5e-9,
       "unit": "F",
       "origin": "estimated",
-      "method": "B18-013: capacidad parásita equivalente placa-placa (interbobinado) pequeña, fijada para que la resonancia con Lleak (f = 1/(2π·√(Lleak·Cp)) ≈ 145 kHz) caiga fuera de la banda audible y de la banda de proceso a 4×; con la impedancia de fuente estimada del par (2·rp = 45 kΩ, rp del datasheet RCA a clase A1) el polo queda ≈ 35 kHz. Sin medida del OT-471.",
-      "date": "2026-10-15",
-      "source": "aproximación del proyecto, documentada"
+      "method": "B18-009 (2026-10-16): capacitancia shunt total del primario (interbobinado + distribuida), acotada para que la autorresonancia con Lleak (f = 1/(2π·√(Lleak·Cp))) caiga en la banda física de 30–50 kHz de un transformador push-pull de 50 W de 1967 (≈37,5 kHz con Lleak = 12 mH), no en un criterio de diseño de 145 kHz que situaba la resonancia en el cruce del lazo NFB. Análisis de sensibilidad y márgenes: docs/B18_009_SENSITIVITY.md. Sigue siendo `estimated`, sin medida del OT-471.",
+      "date": "2026-10-16",
+      "source": "aproximación del proyecto, documentada; requiere medida del OT-471"
     },
     "output_transformer.core_loss_ohms": {
       "value": 500.0,

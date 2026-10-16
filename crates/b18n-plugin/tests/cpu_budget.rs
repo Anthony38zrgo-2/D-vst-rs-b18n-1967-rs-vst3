@@ -72,9 +72,15 @@ fn bench_stereo(oversampling: u8) -> f64 {
 /// medias con arranque cálido). **B18-012** añade la fuente dinámica (rieles
 /// por muestra + Euler implícito 4×4 + bias 1D a la tasa efectiva): medido
 /// ~27-29,5 µs/muestra en esta máquina (varianza run-to-run ≈ ±1,5 µs).
-/// La guardia se fija en **32 µs** (≈1,54 núcleos) para detectar regresiones
-/// sin acoplar la CI al hardware. En debug no se mide (el coste del solver
-/// dominaría).
+/// **B18-009** sustituye el inversor + la etapa de potencia + el lazo NFB
+/// artificial (`z^-1` + polo de 2,5 kHz) por el **solve acoplado de 11 nodos**
+/// (7199 + 2×7027A + OT-471 + NFB de 22 kΩ en la misma muestra, con conducción
+/// de rejilla del pentodo): medido **~36-38 µs/muestra** estéreo a 4×. La
+/// guardia se re-basa a **40 µs** por el cambio de arquitectura (no por relajar
+/// tolerancias de solver); un Schur no lineal correcto o un jacobiano analítico
+/// en los triodos del previo podrían devolverla a 32 µs en una ronda aparte.
+/// La guardia detecta regresiones sin acoplar la CI al hardware. En debug no se
+/// mide (el coste del solver dominaría).
 #[test]
 fn process_is_far_below_realtime_budget() {
     if cfg!(debug_assertions) {
@@ -83,9 +89,10 @@ fn process_is_far_below_realtime_budget() {
     let per_sample_ns = bench_stereo(4);
     println!("CPU: {per_sample_ns:.0} ns/muestra (estéreo, 4×, 48 kHz)");
     assert!(
-        per_sample_ns < 32_000.0,
-        "regresión de CPU: {per_sample_ns:.0} ns/muestra (guardia declarada 32 µs, \
-         medido ~27-29,5 µs tras B18-012, ~25,2 µs tras B18-008 y ~23 µs en Ola 8)"
+        per_sample_ns < 40_000.0,
+        "regresión de CPU: {per_sample_ns:.0} ns/muestra (guardia declarada 40 µs, \
+         medido ~36-38 µs tras B18-009, ~27-29,5 µs tras B18-012, ~25,2 µs tras B18-008 \
+         y ~23 µs en Ola 8)"
     );
 }
 

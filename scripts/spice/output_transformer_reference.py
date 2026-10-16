@@ -24,7 +24,9 @@ Requiere ngspice 47 (véase scripts/spice/README.md).
 
 from __future__ import annotations
 
+import argparse
 import cmath
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -50,7 +52,7 @@ CORE_LOSS_OHMS = 500.0
 SOURCE_OHMS = 45_000.0
 
 
-def analytic_transfer(frequency_hz: float) -> complex:
+def analytic_transfer(frequency_hz: float, parasitic_f: float = PARASITIC_F) -> complex:
     """Respuesta compleja vsec/vs de la red continua (convencion del motor).
 
     Topologia: vs -- Rs -- Rdc(2 medias) -- nodo A; en A: Cp placa-placa;
@@ -61,7 +63,7 @@ def analytic_transfer(frequency_hz: float) -> complex:
     reflected = TURNS_RATIO * TURNS_RATIO * (LOAD_OHMS + DC_SECONDARY_OHMS)
     z_magnetizing = 1j * omega * MAGNETIZING_H
     z_load = reflected + 1j * omega * LEAKAGE_H
-    z_cp = 1.0 / (1j * omega * PARASITIC_F)
+    z_cp = 1.0 / (1j * omega * parasitic_f)
     z_node_f = 1.0 / (1.0 / z_magnetizing + 1.0 / z_load)
     z_internal = CORE_LOSS_OHMS + z_node_f
     z_total = 1.0 / (1.0 / z_internal + 1.0 / z_cp)
@@ -73,12 +75,17 @@ def analytic_transfer(frequency_hz: float) -> complex:
     return -TURNS_RATIO * i_ref * LOAD_OHMS
 
 
-def run_ngspice() -> list[tuple[float, float, float]]:
+def run_ngspice(cp: float) -> list[tuple[float, float, float]]:
     WORK_DIR.mkdir(parents=True, exist_ok=True)
     binary = find_ngspice()
+    # Version the netlist with the requested Cp; the historical .cir stays.
+    text = NETLIST.read_text(encoding="utf-8")
+    text = re.sub(r"Cp\s+a b \S+", f"Cp   a b {cp:.9g}", text)
+    netlist = WORK_DIR / "ot471_linear_cp.cir"
+    netlist.write_text(text, encoding="utf-8")
     log = WORK_DIR / "ot471.log"
     completed = subprocess.run(
-        [str(binary), "-b", "-o", str(log), str(NETLIST)],
+        [str(binary), "-b", "-o", str(log), str(netlist)],
         cwd=str(WORK_DIR),
         check=False,
         capture_output=True,
@@ -111,12 +118,18 @@ def run_ngspice() -> list[tuple[float, float, float]]:
     return rows
 
 
-def main() -> int:
-    rows = run_ngspice()
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--cp", type=float, default=PARASITIC_F, help="Cp en faradios")
+    parser.add_argument("--output", type=Path, default=GOLDEN, help="CSV de salida")
+    args = parser.parse_args(argv)
+    cp = args.cp
+    golden = args.output
+    rows = run_ngspice(cp)
     worst_deviation = 0.0
     for frequency, magnitude, phase_rad in rows:
         spice = cmath.rect(magnitude, phase_rad)
-        expected = analytic_transfer(frequency)
+        expected = analytic_transfer(frequency, cp)
         deviation = abs(spice - expected) / max(abs(expected), 1e-12)
         worst_deviation = max(worst_deviation, deviation)
     print(f"ngspice vs analitico: desviacion relativa maxima {worst_deviation:.2e}")
@@ -125,11 +138,11 @@ def main() -> int:
             "el netlist no coincide con la red analitica; no se escribe el golden"
         )
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    with GOLDEN.open("w", encoding="utf-8", newline="") as handle:
+    golden.parent.mkdir(parents=True, exist_ok=True)
+    with golden.open("w", encoding="utf-8", newline="") as handle:
         handle.write(
             "# B-18N 1967 - OT-471 lineal (B18-013): equivalente diferencial\n"
-            "# vsec/vs con Rs=45 kohm; Lm=28.7 H, Lleak=12 mH, Cp=100 pF, R_core=500 ohm,\n"
+            f"# vsec/vs con Rs=45 kohm; Lm=28.7 H, Lleak=12 mH, Cp={cp:.9g} F, R_core=500 ohm,\n"
             "# N8=23.18, DCR 300/0.4 ohm, carga 8 ohm (parametros estimated del overlay).\n"
             "# ngspice 47 sobre scripts/spice/b18n_ot471_linear.cir (AC, dec 20).\n"
             "frequency_hz,vsec_over_vs_db,vsec_over_vs_phase_deg\n"
@@ -138,7 +151,7 @@ def main() -> int:
             db = 20.0 * cmath.log10(magnitude).real if magnitude > 0 else -999.0
             phase_deg = phase_rad * 180.0 / cmath.pi
             handle.write(f"{frequency:.9g},{db:.9f},{phase_deg:.9f}\n")
-    print(f"{len(rows)} filas -> {GOLDEN}")
+    print(f"{len(rows)} filas -> {golden}")
 
     for probe in (20.0, 200.0, 1_000.0, 20_000.0):
         nearest = min(rows, key=lambda row: abs(row[0] - probe))

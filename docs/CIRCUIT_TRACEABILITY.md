@@ -182,20 +182,23 @@ independientes fallan; el candidato conjunto no se integra. Véase
 
 - **OT-471:** primario 4300 Ω placa-placa; secundarios **16 Ω (GREEN)**, **8 Ω (YELLOW)**,
   común **BLACK**; tomas de NFB según arriba.
-- **Modelo (B18-013):** `stages/output_transformer.rs` con `Ideal` (Hito C, solo
-  regresión/fallback) y `Linear`: red diferencial
+- **Modelo (B18-013; `Cp` corregido en B18-009):** `stages/output_transformer.rs`
+  con `Ideal` (Hito C, solo regresión/fallback) y `Linear`: red diferencial
   `2·Rh + R_core + (Lm ∥ (Lleak + N²·(Rcarga+DCR_sec))) ∥ Cp` resuelta en el
   Newton de placas (`PushPullStage::solve_plates`) con el secundario acoplado
   al EMF del flujo (nodo interno F). Parámetros `estimated` desde el overlay
   (`output_transformer.*`, método y fecha en la calibración): `Lm = 28,7 H`
-  (corte 25 Hz), `Lleak = 12 mH` (agudos ≈64 kHz), `Cp = 100 pF`,
+  (corte 25 Hz), `Lleak = 12 mH` (agudos ≈64 kHz), `Cp = 1,5 nF`
+  (autorresonancia ≈37,5 kHz; corregido desde 100 pF en B18-009, causa raíz de
+  los márgenes negativos de NFB),
   `R_core = 500 Ω` (pérdidas de flujo; τ ≈ 57 ms) y cota provisional de flujo
   0,12 A (placeholder de saturación, B18-014). Integración Euler atrás
-  (inductores) y TPT (capacidad); desviación medida contra SPICE ≤0,091 dB /
-  0,97° en la banda audible. Golden:
-  `assets/fixtures/reference/output_transformer/ot471_linear_spice.csv`
-  (netlist `scripts/spice/b18n_ot471_linear.cir`, validado contra analítica
-  independiente) y test `crates/b18n-dsp/tests/output_transformer_ac.rs`.
+  (inductores) y TPT (capacidad). Goldens: histórico
+  `ot471_linear_spice.csv` (Cp=100 pF, conservado) y corregido
+  `ot471_linear_spice_cp15n.csv` (Cp=1,5 nF; generado por
+  `scripts/spice/output_transformer_reference.py --cp 1.5e-9`, validado contra
+  analítica independiente) con test
+  `crates/b18n-dsp/tests/output_transformer_ac.rs`.
 - Salida a jack de altavoz y **EXT. SPKR.**; altavoz **8 Ω** (carga nominal,
   fallback declarado). **B18-015 implementó la carga reactiva opcional**
   (`ElectricalLoad`: RLC estimado `Re+Le+Res∥Les∥Ces` dentro del solve del

@@ -133,6 +133,11 @@ where
     // (mismo estado evaluado). `r`/`jacobian` viven siempre en x actual.
     evaluate(x, &mut r, &mut jacobian);
     let mut norm = max_abs(&r);
+    // El retroceso de línea usa la norma L2: el paso de Newton es una
+    // dirección de descenso para ||r||² incluso cuando la norma infinito
+    // aumenta (funciones no suaves como la conducción de rejilla). La
+    // convergencia se sigue midiendo en norma infinito.
+    let mut sum_sq = sum_squares(&r);
     for iteration in 0..config.max_iterations {
         if !norm.is_finite() {
             return NewtonReport {
@@ -177,16 +182,17 @@ where
         let mut factor = 1.0;
         for _ in 0..=config.max_backtracks {
             // `delta` resuelve J·δ = −r: el paso es x + δ. La evaluación del
-            // intento aceptado queda como evaluación del estado x siguiente,
-            // así que se escribe directamente en `r`/`jacobian`.
+            // intento aceptado queda como evaluación del estado x siguiente.
             for ((trial, state), step) in x_trial.iter_mut().zip(x.iter()).zip(delta.iter()) {
                 *trial = state + factor * step;
             }
             evaluate(&x_trial, &mut r, &mut jacobian);
             let trial_norm = max_abs(&r);
-            if trial_norm.is_finite() && trial_norm <= norm {
+            let trial_sum_sq = sum_squares(&r);
+            if trial_norm.is_finite() && trial_sum_sq <= sum_sq {
                 x.copy_from_slice(&x_trial);
                 norm = trial_norm;
+                sum_sq = trial_sum_sq;
                 delta.iter_mut().for_each(|value| *value *= factor);
                 accepted = true;
                 break;
@@ -224,6 +230,12 @@ fn max_abs(values: &[f64]) -> f64 {
     values
         .iter()
         .fold(0.0_f64, |acc, value| acc.max(value.abs()))
+}
+
+fn sum_squares(values: &[f64]) -> f64 {
+    values
+        .iter()
+        .fold(0.0_f64, |acc, value| acc + value * value)
 }
 
 /// Eliminación gaussiana con pivoteo parcial; resuelve `J·delta = -r`.

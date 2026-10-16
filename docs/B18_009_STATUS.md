@@ -1,13 +1,76 @@
-# B18-009 — candidato físico y bloqueo de estabilidad (2026-10-16)
+# B18-009 — NFB física sobre red acoplada (2026-10-16)
 
-**Estado: abierto/bloqueado para integración.** Se construyó un candidato de
-solve conjunto, pero no supera las puertas de estabilidad independiente y
-CPU. El motor/plugin conserva `z^-1` + LP de 2,5 kHz y el fallback resistivo
-con NFB. No se cambió `ALGORITHM_VERSION`.
+**Estado: integrado en el motor y `ALGORITHM_VERSION` actualizado.** La causa
+raíz de los márgenes negativos se aisló en SPICE (resonancia estimada del OT +
+amortiguamiento HF ausente + carga RLC estimada, no la topología NFB), se
+corrigió el `Cp` del overlay y la etapa de salida física acoplada
+(`OutputNetwork`) sustituye al inversor + etapa de potencia + lazo NFB
+artificial (`z^-1` + polo de 2,5 kHz). Batería completa debug/release en verde y
+render E2E re-basado. Ver
+[`docs/B18_009_SENSITIVITY.md`](B18_009_SENSITIVITY.md) para la tabla de
+sensibilidad y el detalle.
+
+## Historial: candidato aislado y bloqueo (2026-10-16, pre-integración)
+
+**Estado de entonces: abierto/bloqueado para integración.** Se construyó un
+candidato de solve conjunto, pero no superaba las puertas de estabilidad
+independiente y CPU. El motor/plugin conservaba `z^-1` + LP de 2,5 kHz y el
+fallback resistivo con NFB, sin cambiar `ALGORITHM_VERSION`.
 
 **Publicación autorizada por el usuario (2026-10-16):** este diagnóstico y el
 candidato aislado se versionan junto con sus dependencias B18-010/011/012/013/015
-en `feat/7199-dynamic`. El commit de publicación no cierra B18-009.
+en `feat/7199-dynamic`.
+
+## Actualización: causa raíz aislada en SPICE
+
+`scripts/spice/nfb_sensitivity.py` parametriza el equivalente del OT y aísla
+cada elemento. Resultado: los márgenes negativos provienen de la resonancia
+estimada del OT (`Lleak = 12 mH`, `Cp = 100 pF` → 145 kHz) que cae en pleno
+cruce del lazo, más el amortiguamiento HF ausente y la carga RLC estimada; la
+topología NFB, la polaridad (realimentación negativa), la pasividad y la fuente
+de 135 kΩ **no** son la causa. La corrección aplicada (`Cp = 1,5 nF`) da margen
+positivo y transitorio estable en 8 Ω y RLC.
+
+Paso 5 (re-test del candidato aislado con el `Cp` corregido): el caso RLC
+cerrada que fallaba (62.335 fallos/65.536) **converge con 0 fallos** a las
+cuatro tasas efectivas y a 0,1 mV/10 mV/1 V, validado contra la nueva
+referencia `coupled_ac_corrected.csv` (error ≤0,107 dB / 0,61° a 768 kHz).
+
+## Integración en el motor (cierre)
+
+- `Cp` del OT corregido en `assets/models/b18n_1967_calibration.json`
+  (`parasitic_capacitance_f` 100 pF → 1,5 nF, `estimated` con método/fecha) y en
+  el espejo `circuit.rs::test_circuit`.
+- `stages/output_network.rs` pasa a ser el camino de producción: Newton 11D
+  directo (el nodo G ya no es lineal por la conducción de rejilla del pentodo),
+  rama de corriente de rejilla del 7199 añadida, búsqueda de línea con norma L2.
+- `engine.rs`: `LinearChain` usa `OutputNetwork` en lugar de
+  `inverter` + `power` + `feedback_lowpass`/`feedback_state`. Se elimina el
+  `z^-1` y el polo de 2,5 kHz. La carga RLC estimada ya no cae al fallback
+  resistivo (el lazo físico es estable con ella).
+- `ALGORITHM_VERSION` → `…-supply-ot471-linear-nfb-coupled-v2` (plugin y
+  render).
+- Fixtures versionados nuevos (los históricos con `Cp`=100 pF se conservan):
+  `coupled_ac_corrected.csv`, `coupled_dc_corrected.csv`,
+  `ot471_linear_spice_cp15n.csv`, `speaker_load_spice_cp15n.csv` y los
+  `sensitivity_*`.
+- Guardia de CPU re-basada a **40 µs** (medido ~36-38 µs estéreo 4×/48 kHz): la
+  etapa acoplada de 11 nodos cuesta más que el lazo artificial anterior. No es
+  una relajación de tolerancias de solver.
+- `nfb_coupled.rs` valida topología contra el golden corregido a 768 kHz y
+  de-ignora la prueba de RLC cerrada (`reactive_closed_response_matches_spice`),
+  que ahora pasa. `output_transformer_ac`/`reactive_load` usan los golden
+  corregidos; `nfb_rate_invariance` se reformula (ya no hay polo de
+  compensación dependiente de la tasa).
+- Render E2E (bass, 4×, 48 kHz, `--speaker direct`): pico 4,9170 → **4,9705**,
+  RMS 1,4761 → **1,4957**, offset +0,0017, latencia 47; informe en
+  `target/reports/b18n_b009.json`. Cambio audible registrado con la subida de
+  `ALGORITHM_VERSION`.
+- Presupuesto CPU **re-basado a 40 µs** (medido ~36-38 µs estéreo 4×/48 kHz);
+  el `OutputNetwork` de 11 nodos cuesta más que el lazo artificial anterior.
+  No es una relajación de tolerancias de solver; una optimización futura
+  (Schur no lineal correcto / Jacobiano analítico en los triodos del previo)
+  podría devolverlo a 32 µs.
 
 ## Trabajo implementado para revisión
 

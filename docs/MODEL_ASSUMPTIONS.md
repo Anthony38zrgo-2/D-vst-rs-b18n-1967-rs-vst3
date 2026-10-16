@@ -72,8 +72,11 @@ hardware de 1967.
   el **overlay de calibración** los aporta como `estimated` con método y fecha:
   `Lm = 28,7 H` (inductancia diferencial placa-placa por esquina de baja
   frecuencia a 25 Hz con la carga reflejada `N8²·(8+0,4) ≈ 4514 Ω`),
-  `Lleak = 12 mH` (esquina de agudos ≈64 kHz) y `Cp = 100 pF` (resonancia con
-  `Lleak` ≈145 kHz; con la fuente pentodo estimada, polo ≈35 kHz). No son
+  `Lleak = 12 mH` (esquina de agudos ≈64 kHz) y `Cp = 1,5 nF` (B18-009:
+  capacitancia shunt total corregida para que la autorresonancia con `Lleak`
+  caiga en la banda física de 30–50 kHz, ≈37,5 kHz, y no en el cruce del lazo;
+  el valor anterior de 100 pF / 145 kHz situaba la resonancia en el crossover
+  de la NFB — véase `docs/B18_009_SENSITIVITY.md`). No son
   medidas del OT-471: son criterios de diseño documentados y sustituibles por
   una caracterización real sin cambiar la API.
 
@@ -176,33 +179,23 @@ hardware de 1967.
   comparación relativa «+5 dB a favor de 4×» era un artefacto del polo de NFB
   dependiente del sobremuestreo. Un interpolador de mayor atenuación queda como
   mejora documentada (B18-018).
-- **NFB (P1.6, implementada; polo corregido en B18-002):** 22 kΩ
+- **NFB (P1.6; cerrada sobre la red física en B18-009):** 22 kΩ
   desde la toma de 16 Ω al **cátodo del pentodo** (topología del AN-183 y del
-  flag «F» del raster; DC consistente con pin 6 = 1,8 V). Separación **explícita
-  `z^-1`** (aproximación declarada): la muestra de la toma se inyecta un sample
-  después, **de la tasa de proceso efectiva** (`tasa base × oversampling`). El
-  modelo no incluye los parásitos de HF del tubo/transformador que limitan la
-  ganancia de lazo en el amplificador real, así que el camino de realimentación
-  lleva un **polo de compensación a 2,5 kHz** (declarado, **provisional**: no es
-  una característica verificada del B-18N). Desde B18-002 el polo se construye
-  con la **tasa de proceso efectiva** y con discretización **TPT/bilineal con
-  prewarp** (magnitud exacta −3 dB en 2,5 kHz a cualquier tasa, verificada en
-  `filters.rs`); antes se construía con la tasa base mientras el filtro
-  integraba `oversampling` veces por muestra, de modo que el corte efectivo
-  escalaba con el factor (≈5 kHz a 2×, ≈10 kHz a 4×) y su fase en HF se alejaba
-  del RC analógico (Euler: −13° a 20 kHz a 1×; TPT: −87°). Invariancia medida
-  entre 1×/2×/4× (`nfb_rate_invariance.rs`, senos pequeños, latencia
-  compensada): dispersión ≤0,64 dB/8,1° hasta 2,5 kHz y ≤2,85 dB/15,7° hasta
-  5 kHz (antes: 3,5 dB/20° y 7,5 dB/12° a 48 kHz). El residuo en 4–5 kHz está
-  dominado por el `z^-1` de una muestra de proceso (mayor a 1×; se retira en
-  B18-009) y por la discretización de los acoplos. Cambio audible registrado
-  con `ALGORITHM_VERSION` (`…-nfb-25k-tpt-rate-2x-speaker-v1`): render E2E del
-  baseline pico 3,0838 → 3,0776, RMS 1,0592 → 1,0571, offset +0,00147 →
-  +0,00140. La polaridad del arrollamiento de 16 Ω no está documentada: se
-  asume la que produce realimentación negativa (verificada por la reducción de
-  ganancia ≈7× y la ausencia de oscilación sostenida en `nfb_stability.rs` a
-  44,1–192 kHz, cargas 8/16 Ω y drives hasta 4 V). El margen formal de lazo
-  abierto queda pendiente de B18-008/B18-009.
+  flag «F» del raster; DC consistente con pin 6 = 1,8 V). Hasta B18-008 el
+  lazo se separaba con un `z^-1` explícito y un **polo de compensación de
+  2,5 kHz** (provisional, no verificado en el B-18N) para enmascarar el retardo
+  y la ausencia de parásitos HF. **B18-009** retira ambos: la tensión de la
+  toma se cierra en la **misma muestra** resolviendo juntos 7199, 2×7027A,
+  OT-471 y la NFB en un único sistema acoplado (`stages/output_network.rs`,
+  Newton 11D con Jacobiano analítico, conducción de rejilla de pentodo y
+  triodo). La fase HF surge de las capacitancias de válvula, del OT y de la
+  carga, no de un filtro de compensación. Causa raíz y márgenes de lazo:
+  `docs/B18_009_SENSITIVITY.md`. La polaridad del arrollamiento de 16 Ω no
+  está documentada: se asume la que produce realimentación negativa (verificada
+  por la reducción de ganancia y la ausencia de oscilación sostenida en
+  `nfb_stability.rs` a 44,1–192 kHz, cargas 8/16 Ω y drives hasta 4 V). Cambio
+  audible registrado con `ALGORITHM_VERSION`
+  (`…-supply-ot471-linear-nfb-coupled-v2`).
 - **Bloqueo de continua del OT (B18-013):** el transformador pasa a ser una
   red con estados. En el modo lineal el bloqueo es físico: el secundario se
   acopla a la tensión del nodo interno F (el EMF del flujo) y la corriente

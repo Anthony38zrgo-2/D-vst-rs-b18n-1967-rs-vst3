@@ -1,0 +1,383 @@
+{
+  "method": "Differential one-port, Re(Z) >= 0 required.",
+  "scenarios": [
+    {
+      "scenario": "ideal",
+      "load": "nominal",
+      "min_re_z_ohm": 4813.42416,
+      "at_hz": 1.0,
+      "passive": true
+    },
+    {
+      "scenario": "ideal",
+      "load": "reactiva",
+      "min_re_z_ohm": 4007.38019897482,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "lm_only",
+      "load": "nominal",
+      "min_re_z_ohm": 307.1932420526166,
+      "at_hz": 1.0,
+      "passive": true
+    },
+    {
+      "scenario": "lm_only",
+      "load": "reactiva",
+      "min_re_z_ohm": 308.6515135828848,
+      "at_hz": 1.0,
+      "passive": true
+    },
+    {
+      "scenario": "lm_lleak",
+      "load": "nominal",
+      "min_re_z_ohm": 307.1932324638502,
+      "at_hz": 1.0,
+      "passive": true
+    },
+    {
+      "scenario": "lm_lleak",
+      "load": "reactiva",
+      "min_re_z_ohm": 308.6514745828606,
+      "at_hz": 1.0,
+      "passive": true
+    },
+    {
+      "scenario": "lm_lleak_cp",
+      "load": "nominal",
+      "min_re_z_ohm": 300.0000000201106,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "lm_lleak_cp",
+      "load": "reactiva",
+      "min_re_z_ohm": 300.0000000000122,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "baseline",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000000201106,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "baseline",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.000000000012,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "cp_0p",
+      "load": "nominal",
+      "min_re_z_ohm": 807.1932324638497,
+      "at_hz": 1.0,
+      "passive": true
+    },
+    {
+      "scenario": "cp_0p",
+      "load": "reactiva",
+      "min_re_z_ohm": 808.6514745828606,
+      "at_hz": 1.0,
+      "passive": true
+    },
+    {
+      "scenario": "cp_22p",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000004155152,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "cp_22p",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.0000000002518,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "cp_47p",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000000910399,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "cp_47p",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.000000000055,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "cp_220p",
+      "load": "nominal",
+      "min_re_z_ohm": 800.000000004155,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "cp_220p",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.0000000000024,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "cp_470p",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000000009102,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "cp_470p",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.0000000000005,
+      "at_hz": 97723722.09557883,
+      "passive": true
+    },
+    {
+      "scenario": "lleak_6m",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000000804428,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "lleak_6m",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.0000000000124,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "lleak_24m",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000000050273,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "lleak_24m",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.0000000000114,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "lleak_48m",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000000012568,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "lleak_48m",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.0000000000102,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "rcore_0",
+      "load": "nominal",
+      "min_re_z_ohm": 300.0000000201106,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "rcore_0",
+      "load": "reactiva",
+      "min_re_z_ohm": 300.0000000000122,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "rcore_100",
+      "load": "nominal",
+      "min_re_z_ohm": 400.0000000201106,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "rcore_100",
+      "load": "reactiva",
+      "min_re_z_ohm": 400.0000000000122,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "rcore_2000",
+      "load": "nominal",
+      "min_re_z_ohm": 2300.00000002011,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "rcore_2000",
+      "load": "reactiva",
+      "min_re_z_ohm": 2300.000000000012,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "lm_14h",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000000201106,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "lm_14h",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.000000000012,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "lm_57h",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000000201106,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "lm_57h",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.000000000012,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "no_caps",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000000201106,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "no_caps",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.000000000012,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "source_220k",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000000201106,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "source_220k",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.000000000012,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "source_270k",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000000201106,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "source_270k",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.000000000012,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "source_330k",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000000201106,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "source_330k",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.000000000012,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "source_tone",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000000201106,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "source_tone",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.000000000012,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "inverted_polarity",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000000201106,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "inverted_polarity",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.000000000012,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "tap8",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000000201106,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "tap8",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.000000000012,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "corrected_cp1500p",
+      "load": "nominal",
+      "min_re_z_ohm": 800.0000000000892,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "corrected_cp1500p",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.0,
+      "at_hz": 72443596.00749739,
+      "passive": true
+    },
+    {
+      "scenario": "corrected_cp1500p_rw900",
+      "load": "nominal",
+      "min_re_z_ohm": 800.000000000107,
+      "at_hz": 99999999.9999977,
+      "passive": true
+    },
+    {
+      "scenario": "corrected_cp1500p_rw900",
+      "load": "reactiva",
+      "min_re_z_ohm": 800.0,
+      "at_hz": 77624711.66286743,
+      "passive": true
+    }
+  ]
+}

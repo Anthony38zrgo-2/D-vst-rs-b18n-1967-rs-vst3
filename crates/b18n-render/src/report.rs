@@ -7,7 +7,7 @@ use serde::Serialize;
 /// Versión del algoritmo de render; cambiar al variar el DSP de forma audible.
 pub const ALGORITHM_VERSION: &str = concat!(
     env!("CARGO_PKG_VERSION"),
-    "-nonlinear-triodes-power-7199-inverter-nfb-25k-tpt-rate-2x-tone-mna-preamp-loading-7199-coupled-speaker-7027a-datasheet-supply-ot471-linear-v1"
+    "-nonlinear-triodes-power-7199-inverter-nfb-25k-tpt-rate-2x-tone-mna-preamp-loading-7199-coupled-speaker-7027a-datasheet-supply-ot471-linear-nfb-coupled-v2"
 );
 
 #[derive(Debug, Serialize)]

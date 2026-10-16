@@ -1,11 +1,15 @@
 # B-18N 1967 — Backlog de correcciones y fidelidad física del VST3
 
-> **Seguimiento B18-009, 2026-10-16:** candidato físico implementado de forma
-> aislada, **integración bloqueada**, ticket abierto. La referencia SPICE
-> corregida presenta márgenes HF negativos y oscilación; el solve Rust falla
-> con RLC cerrada. No se retiró `z^-1`/LP ni el fallback del plugin. Informe:
-> [`docs/B18_009_STATUS.md`](docs/B18_009_STATUS.md). El cuerpo siguiente
-> conserva la propuesta histórica original; no es una tabla de avance actual.
+> **Cierre B18-009, 2026-10-16:** causa raíz aislada en SPICE (resonancia
+> estimada del OT a 145 kHz en el cruce del lazo + amortiguamiento HF ausente +
+> carga RLC estimada, no la topología NFB), `Cp` del OT corregido a 1,5 nF y
+> etapa de salida física acoplada (`OutputNetwork`) integrada en el motor,
+> retirando el `z^-1` y el polo de compensación de 2,5 kHz. `ALGORITHM_VERSION`
+> → `…-supply-ot471-linear-nfb-coupled-v2`. Informes:
+> [`docs/B18_009_STATUS.md`](docs/B18_009_STATUS.md) y
+> [`docs/B18_009_SENSITIVITY.md`](docs/B18_009_SENSITIVITY.md). El cuerpo
+> siguiente conserva la propuesta histórica original; no es una tabla de avance
+> actual.
 
 **Proyecto:** [`Anthony38zrgo-2/D-vst-rs-b18n-1967-rs-vst3`](https://github.com/Anthony38zrgo-2/D-vst-rs-b18n-1967-rs-vst3)\
 **Rama auditada:** `main` · **commit de referencia:** `fecf203bab9e48a899206c4400190332e5eba859` (`fixes`, 2026-10-14)\

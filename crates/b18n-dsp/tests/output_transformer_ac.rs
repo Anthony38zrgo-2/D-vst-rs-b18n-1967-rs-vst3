@@ -1,12 +1,13 @@
 //! B18-013: contraste AC del OT-471 lineal contra ngspice.
 //!
-//! El golden `ot471_linear_spice.csv` lo genera
-//! `scripts/spice/output_transformer_reference.py` con ngspice 47 sobre
-//! `scripts/spice/b18n_ot471_linear.cir` (equivalente diferencial con
-//! Lm=28.7 H, Lleak=12 mH, Cp=100 pF, R_core=500 Ω, DCR 300/0.4 Ω, N8=23.18,
-//! carga 8 Ω y fuente Thevenin Rs=45 kΩ = 2·rp de la 7027A del datasheet).
-//! El script comprueba el netlist contra una implementación analítica
-//! independiente antes de escribir el CSV.
+//! El golden `ot471_linear_spice_cp15n.csv` lo genera
+//! `scripts/spice/output_transformer_reference.py --cp 1.5e-9` con ngspice 47
+//! sobre `scripts/spice/b18n_ot471_linear.cir` (equivalente diferencial con
+//! Lm=28.7 H, Lleak=12 mH, Cp=1,5 nF corregido en B18-009, R_core=500 Ω,
+//! DCR 300/0.4 Ω, N8=23.18, carga 8 Ω y fuente Thevenin Rs=45 kΩ = 2·rp de la
+//! 7027A del datasheet). El script comprueba el netlist contra una
+//! implementación analítica independiente antes de escribir el CSV. El golden
+//! histórico con Cp=100 pF se conserva sin cambios.
 //!
 //! El motor integra con Euler atrás los dos inductores (memoria acotada,
 //! robustez del solve) y TPT el condensador; la desviación frente a la
@@ -16,11 +17,16 @@
 use b18n_dsp::stages::output_transformer::{OutputTransformerConfig, OutputTransformerModel};
 use b18n_dsp::stages::speaker_impedance::ElectricalLoadConfig;
 
-const GOLDEN: &str =
-    include_str!("../../../assets/fixtures/reference/output_transformer/ot471_linear_spice.csv");
+const GOLDEN: &str = include_str!(
+    "../../../assets/fixtures/reference/output_transformer/ot471_linear_spice_cp15n.csv"
+);
 
 const SAMPLE_RATE_HZ: f64 = 48_000.0;
 const OVERSAMPLING: f64 = 4.0;
+/// Tasa de proceso del plugin (4× de 48 kHz).
+const PROCESS_RATE_HZ: f64 = SAMPLE_RATE_HZ * OVERSAMPLING;
+/// Tasa alta para aislar la topología del warping de discretización.
+const TOPOLOGY_RATE_HZ: f64 = 768_000.0;
 /// Fuente Thevenin del contraste: 2·rp(7027A, datasheet RCA clase A1).
 const SOURCE_OHMS: f64 = 45_000.0;
 
@@ -71,11 +77,15 @@ fn secondary_port_predicts_the_same_sample_without_advancing_history() {
 /// Respuesta compleja `vsec/vs` del modelo a `frequency_hz`, con la misma
 /// excitación Thevenin del golden (fuente interna de 1 V). La fuente se
 /// escribe como coseno, la convención de fase del `.ac` de SPICE.
-fn model_transfer(config: OutputTransformerConfig, frequency_hz: f64) -> (f64, f64) {
-    let dt = 1.0 / (SAMPLE_RATE_HZ * OVERSAMPLING);
+fn model_transfer(
+    config: OutputTransformerConfig,
+    frequency_hz: f64,
+    processing_rate: f64,
+) -> (f64, f64) {
+    let dt = 1.0 / processing_rate;
     let mut model = OutputTransformerModel::new(config, dt).expect("modelo del OT");
     let omega = 2.0 * std::f64::consts::PI * frequency_hz;
-    let frames = (8.0 * (SAMPLE_RATE_HZ * OVERSAMPLING) / frequency_hz) as usize;
+    let frames = (8.0 * processing_rate / frequency_hz) as usize;
     let (mut real, mut imag) = (0.0_f64, 0.0_f64);
     for index in 0..frames {
         let angle = omega * index as f64 * dt;
@@ -125,14 +135,14 @@ fn golden_points() -> Vec<GoldenPoint> {
 }
 
 /// Desviación compleja máxima en `[20 Hz, 20 kHz]` (magnitud y fase envueltas).
-fn worst_deviation(band_low_hz: f64, band_high_hz: f64) -> (f64, f64, f64) {
+fn worst_deviation(band_low_hz: f64, band_high_hz: f64, processing_rate: f64) -> (f64, f64, f64) {
     let config = model_config();
     let (mut worst_db, mut worst_phase_deg, mut at_hz) = (0.0_f64, 0.0_f64, 0.0_f64);
     for point in golden_points() {
         if !(band_low_hz..=band_high_hz).contains(&point.frequency_hz) {
             continue;
         }
-        let (real, imag) = model_transfer(config, point.frequency_hz);
+        let (real, imag) = model_transfer(config, point.frequency_hz, processing_rate);
         let magnitude = real.hypot(imag);
         let model_db = 20.0 * magnitude.log10();
         let model_phase_deg = imag.atan2(real).to_degrees();
@@ -153,12 +163,14 @@ fn worst_deviation(band_low_hz: f64, band_high_hz: f64) -> (f64, f64, f64) {
     (worst_db, worst_phase_deg, at_hz)
 }
 
-/// Magnitud y fase del modelo frente al golden SPICE en la banda audible.
+/// Magnitud y fase del modelo frente al golden SPICE en la banda audible,
+/// evaluadas a una tasa donde el warping de discretización es despreciable
+/// (la desviación a la tasa de proceso se mide aparte).
 #[test]
 fn magnitude_and_phase_match_spice_in_the_audio_band() {
-    let (worst_db, worst_phase_deg, at_hz) = worst_deviation(20.0, 20_000.0);
+    let (worst_db, worst_phase_deg, at_hz) = worst_deviation(20.0, 20_000.0, TOPOLOGY_RATE_HZ);
     println!(
-        "peor desviación en banda audible: {worst_db:.3} dB @ {at_hz:.0} Hz, \
+        "peor desviación en banda audible (768 kHz): {worst_db:.3} dB @ {at_hz:.0} Hz, \
          {worst_phase_deg:.2}°"
     );
     assert!(
@@ -171,6 +183,23 @@ fn magnitude_and_phase_match_spice_in_the_audio_band() {
     );
 }
 
+/// A la tasa de proceso (192 kHz) el modelo desvía del continuo por el warping
+/// TPT del condensador parásito; se mide y acota explícitamente, sin ocultarlo
+/// aflojando la puerta de topología.
+#[test]
+fn process_rate_high_frequency_deviation_is_bounded() {
+    let (worst_db, worst_phase_deg, at_hz) = worst_deviation(10_000.0, 20_000.0, PROCESS_RATE_HZ);
+    println!(
+        "desviación a tasa de proceso (192 kHz, 10–20 kHz): {worst_db:.3} dB @ {at_hz:.0} Hz, \
+         {worst_phase_deg:.2}°"
+    );
+    assert!(
+        worst_db < 1.0,
+        "magnitud a tasa de proceso fuera de cota: {worst_db:.3} dB @ {at_hz:.0} Hz"
+    );
+    assert!(worst_phase_deg < 10.0);
+}
+
 /// La caída sub-20 Hz queda gobernada por `Lm`: a 25 Hz el modelo coincide
 /// con el golden (la esquina efectiva la fijan `Lm`, `R_core` y la fuente
 /// Thevenin, ≈ −2,6 dB respecto de 200 Hz en el propio netlist SPICE).
@@ -178,7 +207,7 @@ fn magnitude_and_phase_match_spice_in_the_audio_band() {
 fn low_frequency_corner_matches_the_golden() {
     let config = model_config();
     let at = |frequency_hz: f64| -> f64 {
-        let (real, imag) = model_transfer(config, frequency_hz);
+        let (real, imag) = model_transfer(config, frequency_hz, PROCESS_RATE_HZ);
         20.0 * real.hypot(imag).log10()
     };
     let golden_db = |target: f64| -> f64 {

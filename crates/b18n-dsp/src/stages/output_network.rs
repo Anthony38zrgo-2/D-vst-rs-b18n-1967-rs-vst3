@@ -9,7 +9,7 @@
 //! The mixer is a Thevenin source with R = Rmix/2 (tone outputs idealized).
 use crate::circuit::CircuitDefinition;
 use crate::numerics::discretization::TptCapacitor;
-use crate::numerics::nonlinear::{solve_with_jacobian, NewtonConfig};
+use crate::numerics::nonlinear::{solve_with_jacobian, NewtonConfig, NewtonFailure};
 use crate::stages::output_transformer::OutputTransformerModel;
 use crate::stages::phase_splitter::{PhaseInverter7199, PhaseInverter7199Config};
 use crate::stages::power_7027a::{PowerStageConfig, PushPullStage};
@@ -31,11 +31,11 @@ const A: usize = 9;
 const B: usize = 10;
 const GROUND: usize = N;
 const NEWTON: NewtonConfig = NewtonConfig {
-    max_iterations: 80,
-    tolerance: 1e-7,
+    max_iterations: 120,
+    tolerance: 1e-6,
     residual_tolerance: 1e-5,
-    max_step: 1000.0,
-    max_backtracks: 12,
+    max_step: 80.0,
+    max_backtracks: 16,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -91,50 +91,41 @@ pub struct OutputNetwork {
     mixer_ohms: f64,
     tap_gain: f64,
     failures: u64,
+    last_failure: Option<NewtonFailure>,
     plate_currents: [f64; 2],
     linear_matrix: [[f64; N]; N],
 }
 
 impl OutputNetwork {
-    /// Eliminate the linear input-grid equation exactly (Schur complement).
-    /// Grid current of the 7199 pentode remains the declared unmodelled branch.
-    fn solve_nodes(&self, x: &mut [f64; N], mixed: f64, dc: bool) -> Option<[f64; 2]> {
+    /// Solve all eleven node voltages with analytic Jacobian. The 7199 pentode
+    /// grid-conduction branch makes the mixer-grid (`G`) row nonlinear, so the
+    /// node is not eliminated and all eleven nodes are solved directly.
+    fn solve_nodes(&mut self, x: &mut [f64; N], mixed: f64, dc: bool) -> Option<[f64; 2]> {
         let (offset, matrix) = self.linear_system(mixed, dc);
-        let mut reduced = [0.0; N - 1];
-        reduced.copy_from_slice(&x[1..]);
-        let expand = |reduced: &[f64]| {
-            let mut full = [0.0; N];
-            full[1..].copy_from_slice(reduced);
-            full[G] = -offset[G];
-            for col in 1..N {
-                full[G] -= matrix[G][col] * full[col];
-            }
-            full[G] /= matrix[G][G];
-            full
-        };
         let mut plate_currents = [0.0; 2];
-        let report = solve_with_jacobian::<10, _>(
-            &mut reduced,
+        let report = solve_with_jacobian::<N, _>(
+            x,
             |state, r, j| {
-                let full = expand(state);
-                let mut residual = [0.0; N];
-                let mut jacobian = [[0.0; N]; N];
-                plate_currents =
-                    self.evaluate(&full, &offset, &matrix, &mut residual, &mut jacobian);
-                for row in 0..10 {
-                    r[row] = residual[row + 1];
-                    for col in 0..10 {
-                        j[row][col] = jacobian[row + 1][col + 1]
-                            - jacobian[row + 1][G] * matrix[G][col + 1] / matrix[G][G];
-                    }
-                }
+                plate_currents = self.evaluate(state, &offset, &matrix, r, j);
             },
             &NEWTON,
         );
-        if report.converged {
-            *x = expand(&reduced);
-        }
+        self.record(&report);
         report.converged.then_some(plate_currents)
+    }
+
+    fn record(&mut self, report: &crate::numerics::nonlinear::NewtonReport) {
+        self.last_failure = if report.converged {
+            None
+        } else {
+            report.failure
+        };
+    }
+
+    /// Kind of the last Newton failure (diagnostic; `None` after convergence).
+    #[must_use]
+    pub fn last_failure(&self) -> Option<NewtonFailure> {
+        self.last_failure
     }
     /// Seed from already solved, supply-consistent DC operating points.
     pub fn new(
@@ -179,6 +170,7 @@ impl OutputNetwork {
             mixer_ohms: circuit.channel.channel_mixer_resistor_ohms / 2.0,
             tap_gain: -pc.transformer.turns_ratio_8ohm / pc.transformer.turns_ratio_16ohm,
             failures: 0,
+            last_failure: None,
             plate_currents: [0.0; 2],
             linear_matrix: [[0.0; N]; N],
         };
@@ -234,18 +226,8 @@ impl OutputNetwork {
 
     pub fn supply_load(&self) -> SupplyLoad {
         let x = &self.nodes;
-        let params = self.beam.params();
-        let screen = |index: usize, plate: usize, grid: usize| {
-            if params.screen_ratio_floor > 0.0 {
-                self.plate_currents[index]
-                    * (params.screen_ratio_floor
-                        + params.screen_ratio_boost
-                            * (-x[plate].max(0.0) / params.screen_ratio_volts.max(1e-6)).exp())
-            } else {
-                self.beam
-                    .screen_current(x[plate], self.power.screen_supply_v, x[grid])
-            }
-        };
+        let screen =
+            |index: usize, plate: usize, grid: usize| self.screen_current_for(index, plate, grid);
         SupplyLoad {
             ct_a: (2.0 * self.power.supply_v - x[A] - x[B])
                 / (0.5 * self.power.transformer.dc_primary_winding_ohms),
@@ -256,6 +238,70 @@ impl OutputNetwork {
                 + (self.inverter.preamp_supply_v - x[S]) / self.inverter.pentode_screen_feed_ohms,
             bias_a: (2.0 * self.power.bias_v - x[U] - x[L]) / self.power.grid_return_ohms,
         }
+    }
+
+    /// Screen current of one 7027A from the current plate solution (B18-011).
+    fn screen_current_for(&self, index: usize, plate: usize, grid: usize) -> f64 {
+        let x = &self.nodes;
+        let params = self.beam.params();
+        if params.screen_ratio_floor > 0.0 {
+            self.plate_currents[index]
+                * (params.screen_ratio_floor
+                    + params.screen_ratio_boost
+                        * (-x[plate].max(0.0) / params.screen_ratio_volts.max(1e-6)).exp())
+        } else {
+            self.beam
+                .screen_current(x[plate], self.power.screen_supply_v, x[grid])
+        }
+    }
+
+    /// Per-tube plate currents of the last converged sample (diagnostic).
+    #[must_use]
+    pub fn plate_currents(&self) -> [f64; 2] {
+        self.plate_currents
+    }
+
+    /// Per-tube screen currents of the last converged sample (diagnostic).
+    #[must_use]
+    pub fn screen_currents(&self) -> [f64; 2] {
+        [
+            self.screen_current_for(0, A, U),
+            self.screen_current_for(1, B, L),
+        ]
+    }
+
+    /// Mean idle plate current per 7027A (diagnostic operating point).
+    #[must_use]
+    pub fn idle_plate_current_a(&self) -> f64 {
+        0.5 * (self.plate_currents[0] + self.plate_currents[1])
+    }
+
+    /// Mean idle screen current per 7027A (diagnostic operating point).
+    #[must_use]
+    pub fn idle_screen_current_a(&self) -> f64 {
+        let currents = self.screen_currents();
+        0.5 * (currents[0] + currents[1])
+    }
+
+    /// 7199 operating point from the last solved node voltages.
+    #[must_use]
+    pub fn inverter_operating_point(
+        &self,
+    ) -> crate::stages::phase_splitter::PhaseInverterOperatingPoint {
+        crate::stages::phase_splitter::PhaseInverterOperatingPoint {
+            pentode_plate_v: self.nodes[P],
+            pentode_screen_v: self.nodes[S],
+            pentode_cathode_v: self.nodes[K],
+            triode_plate_v: self.nodes[TP],
+            triode_cathode_v: self.nodes[TK],
+            triode_grid_v: self.nodes[TG],
+        }
+    }
+
+    /// Plate voltage of the first 7027A (node A) from the last solved sample.
+    #[must_use]
+    pub fn power_plate_voltage(&self) -> f64 {
+        self.nodes[A]
     }
 
     /// Returns the last valid voltage on failure; commits no partial histories.
@@ -427,6 +473,10 @@ impl OutputNetwork {
             j[TP][col] += d;
             j[TK][col] -= d;
         }
+        // 7199 pentode grid conduction (clamps the mixer grid under strong
+        // drive); previously the declared unmodelled branch.
+        let (ig_pentode, dig_pentode) = self.pentode.grid_current_with_slope(x[G] - x[K]);
+        stamp_current(r, j, G, K, ig_pentode, dig_pentode);
         let (ig, dig) = self.triode.grid_current_with_slope(x[TG] - x[TK]);
         stamp_current(r, j, TG, TK, ig, dig);
         let mut plate_currents = [0.0; 2];

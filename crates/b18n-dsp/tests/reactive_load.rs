@@ -28,7 +28,7 @@ use b18n_dsp::{
 };
 
 const GOLDEN: &str =
-    include_str!("../../../assets/fixtures/reference/speaker_load/speaker_load_spice.csv");
+    include_str!("../../../assets/fixtures/reference/speaker_load/speaker_load_spice_cp15n.csv");
 
 const SAMPLE_RATE_HZ: f64 = 48_000.0;
 const OVERSAMPLING: f64 = 4.0;
@@ -344,20 +344,23 @@ fn engine_with_reactive_load_stays_stable_without_feedback() {
     );
 }
 
-/// El motor con carga reactiva + NFB provisional **cae a la carga nominal**
-/// (bloqueo declarado hasta B18-009) y su salida es idéntica a la nominal.
+/// Con la NFB física B18-009 el equivalente estimado **sí se aplica** (ya no
+/// cae a la resistiva, que era el guard del candidato bloqueado); sin los
+/// parámetros del overlay sí se usa el fallback resistivo.
 #[test]
-fn reactive_load_falls_back_with_active_nfb() {
-    let mut without_parameters = circuit_definition();
-    without_parameters.speaker.lumped_equivalent = None;
-
+fn estimated_load_is_applied_with_active_nfb() {
     let input: Vec<f32> = (0..4_096)
         .map(|index| (index as f32 * 0.03).sin() * 0.25)
         .collect();
     let render =
         |circuit: CircuitDefinition, selection: SpeakerLoadSelection| -> (Vec<f32>, String) {
-            let mut engine = engine_with(selection, None, spec()); // NFB del circuito (activa)
-            let _ = circuit;
+            let mut engine = B18nEngine::new(circuit, spec()).expect("motor");
+            engine.set_controls(RuntimeControls {
+                channel: InputChannel::Bass,
+                volume_1: 0.7,
+                speaker_load: selection,
+                ..RuntimeControls::default()
+            });
             let mut output = vec![0.0_f32; input.len()];
             engine.process_mono(&input, &mut output);
             (output, engine.effective_speaker_load().as_str().to_owned())
@@ -369,15 +372,18 @@ fn reactive_load_falls_back_with_active_nfb() {
         circuit_definition(),
         SpeakerLoadSelection::NominalResistance,
     );
+    let mut without_parameters = circuit_definition();
+    without_parameters.speaker.lumped_equivalent = None;
     let (fallback_output, fallback_label) =
         render(without_parameters, SpeakerLoadSelection::EstimatedLumped);
 
-    // Con NFB activa, tanto la selección estimada como el circuito sin
-    // overlay caen a la resistiva (documentado; no hay audio inconsistente).
-    assert_eq!(active_nfb_label, "resistive");
-    assert_eq!(fallback_label, "resistive");
+    // NFB física: la RLC estimada se aplica y cambia la respuesta frente a la
+    // nominal (el lazo físico es estable con la carga reactiva).
+    assert_eq!(active_nfb_label, "lumped-estimated");
     assert_eq!(nominal_label, "resistive");
-    assert_eq!(active_nfb_output, nominal_output);
+    assert_ne!(active_nfb_output, nominal_output);
+    // Sin overlay cae al fallback resistivo, idéntico a la nominal.
+    assert_eq!(fallback_label, "resistive");
     assert_eq!(fallback_output, nominal_output);
 }
 

@@ -1,0 +1,509 @@
+{
+  "method": "10 uV pulse retired at 2.1 us, max step 0.1 us.",
+  "scenarios": [
+    {
+      "scenario": "ideal",
+      "load": "nominal",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 9.573856375879e-05
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 7.127063352497e-09
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 7.391181372829e-09
+        }
+      ]
+    },
+    {
+      "scenario": "ideal",
+      "load": "reactiva",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 2.560754562178
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 43.23396392877
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 43.16711842618
+        }
+      ]
+    },
+    {
+      "scenario": "baseline",
+      "load": "nominal",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 0.0005014588126956
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 15.37423264045
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 15.44576943719
+        }
+      ]
+    },
+    {
+      "scenario": "baseline",
+      "load": "reactiva",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 0.0004912427210092
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 40.11935294332
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 40.03420108345
+        }
+      ]
+    },
+    {
+      "scenario": "cp_0p",
+      "load": "nominal",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 0.003035888526912
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 5.6959659815
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 5.69235621763
+        }
+      ]
+    },
+    {
+      "scenario": "cp_0p",
+      "load": "reactiva",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 1.545516277319
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 42.09679298244
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 41.95490161668
+        }
+      ]
+    },
+    {
+      "scenario": "cp_470p",
+      "load": "nominal",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 9.045308595969e-05
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 20.43101531124
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 20.67427377628
+        }
+      ]
+    },
+    {
+      "scenario": "cp_470p",
+      "load": "reactiva",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 8.642483322531e-05
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 9.414030690814e-08
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 7.099991661447e-09
+        }
+      ]
+    },
+    {
+      "scenario": "lleak_6m",
+      "load": "nominal",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 0.0006333442274175
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 20.05444740233
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 20.0060506
+        }
+      ]
+    },
+    {
+      "scenario": "lleak_6m",
+      "load": "reactiva",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 0.0005050435673395
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 40.72243349891
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 40.56645454927
+        }
+      ]
+    },
+    {
+      "scenario": "lleak_48m",
+      "load": "nominal",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 0.0001944313035716
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 7.489415462461
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 7.521512343113
+        }
+      ]
+    },
+    {
+      "scenario": "lleak_48m",
+      "load": "reactiva",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 0.0004237560171057
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 36.94452888209
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 36.99868343223
+        }
+      ]
+    },
+    {
+      "scenario": "rcore_0",
+      "load": "nominal",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 0.0004990041074999
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 15.57876556241
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 15.66112431052
+        }
+      ]
+    },
+    {
+      "scenario": "rcore_0",
+      "load": "reactiva",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 0.0004702189915272
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 41.0005379665
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 40.93158980049
+        }
+      ]
+    },
+    {
+      "scenario": "rcore_2000",
+      "load": "nominal",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 0.0005096786076712
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 14.87854331032
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 14.92744224759
+        }
+      ]
+    },
+    {
+      "scenario": "rcore_2000",
+      "load": "reactiva",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 0.0005618608126165
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 37.25069441037
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 37.14022737855
+        }
+      ]
+    },
+    {
+      "scenario": "no_caps",
+      "load": "nominal",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 1.340273835854e-13
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 0.0
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 0.0
+        }
+      ]
+    },
+    {
+      "scenario": "no_caps",
+      "load": "reactiva",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 3.461216677815e-10
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 0.0
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 0.0
+        }
+      ]
+    },
+    {
+      "scenario": "inverted_polarity",
+      "load": "nominal",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 0.00760736133047
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 30.67730572158
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 33.87216181938
+        }
+      ]
+    },
+    {
+      "scenario": "inverted_polarity",
+      "load": "reactiva",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 41.37621150286
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 33.56884082912
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 32.06452904758
+        }
+      ]
+    },
+    {
+      "scenario": "corrected_cp1500p",
+      "load": "nominal",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 3.173210450536e-05
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 3.323421857739e-06
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 1.078931553046e-08
+        }
+      ]
+    },
+    {
+      "scenario": "corrected_cp1500p",
+      "load": "reactiva",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 3.917793425745e-05
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 9.578093351771e-08
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 7.127272028691e-09
+        }
+      ]
+    },
+    {
+      "scenario": "corrected_cp1500p_rw900",
+      "load": "nominal",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 2.891818691172e-05
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 2.758140795063e-07
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 1.118426704549e-08
+        }
+      ]
+    },
+    {
+      "scenario": "corrected_cp1500p_rw900",
+      "load": "reactiva",
+      "windows": [
+        {
+          "start_seconds": 0,
+          "end_seconds": 1e-05,
+          "peak_v": 3.906941584876e-05
+        },
+        {
+          "start_seconds": 0.0001,
+          "end_seconds": 0.0002,
+          "peak_v": 9.509401568754e-08
+        },
+        {
+          "start_seconds": 0.001,
+          "end_seconds": 0.002,
+          "peak_v": 7.47467043954e-09
+        }
+      ]
+    }
+  ]
+}

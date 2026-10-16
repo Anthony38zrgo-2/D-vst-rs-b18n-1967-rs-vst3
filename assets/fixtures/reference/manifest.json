@@ -143,6 +143,70 @@
       "description": "B18-009 negative return-ratio margins and unstable 10 uV impulse; candidate must not ship.",
       "conditions": "ngspice 47; frozen rails, unloaded sensing; AC 1 Hz to 100 MHz; transient max step 0.1 us.",
       "generated_by": "scripts/spice/nfb_loop_margins.py"
+    },
+    {
+      "path": "nfb/sensitivity_margins.json",
+      "provenance": "independent-SPICE",
+      "sha256": "a88835d75edee0aff5e1c52ca7a40b1c3a257e56801698a5d078ccbe8553beba",
+      "description": "B18-009 sensitivity of the continuous return ratio, one OT factor at a time.",
+      "conditions": "ngspice 47; frozen rails 380/460/505/500/-55 V; Rmix/2 source; unloaded 16 ohm sensing tap injection, 1 Hz to 100 MHz.",
+      "generated_by": "scripts/spice/nfb_sensitivity.py"
+    },
+    {
+      "path": "nfb/sensitivity_margins.csv",
+      "provenance": "independent-SPICE",
+      "sha256": "feb8f9a5e171f788162d8090a9e1a02082d5e2ba5be43e84daec0e0fe895be9b",
+      "description": "B18-009 sensitivity headline margins per scenario and load.",
+      "conditions": "ngspice 47; frozen rails 380/460/505/500/-55 V; Rmix/2 source; unloaded 16 ohm sensing tap injection, 1 Hz to 100 MHz.",
+      "generated_by": "scripts/spice/nfb_sensitivity.py"
+    },
+    {
+      "path": "nfb/sensitivity_passivity.json",
+      "provenance": "independent-SPICE",
+      "sha256": "ed688c9eee53675edb557b67a3a8b9eee3a44151e79c45e13668533bcbda0fca",
+      "description": "B18-009 differential one-port passivity check of the OT-471 equivalent.",
+      "conditions": "ngspice 47; frozen rails 380/460/505/500/-55 V; Rmix/2 source; unloaded 16 ohm sensing tap injection, 1 Hz to 100 MHz.",
+      "generated_by": "scripts/spice/nfb_sensitivity.py"
+    },
+    {
+      "path": "nfb/sensitivity_transients.json",
+      "provenance": "independent-SPICE",
+      "sha256": "3bf60303b862e511a1ad5968a02d1893bd712d2290e3aee37d27f6ad60f19d49",
+      "description": "B18-009 10 uV impulse transients of the continuous loop.",
+      "conditions": "ngspice 47; frozen rails 380/460/505/500/-55 V; Rmix/2 source; unloaded 16 ohm sensing tap injection, 1 Hz to 100 MHz.",
+      "generated_by": "scripts/spice/nfb_sensitivity.py"
+    },
+    {
+      "path": "nfb/coupled_ac_corrected.csv",
+      "provenance": "independent-SPICE",
+      "sha256": "c582a46b0c2efee12c100fd3cf3dcc1c27556c0afaee44c20ad69ebc27c0edab",
+      "description": "B18-009 coupled output network AC with corrected OT Cp=1.5 nF.",
+      "conditions": "ngspice 47; frozen rails 380/460/505/500/-55 V; Rmix/2 source; unloaded 16 ohm sensing tap injection, 1 Hz to 100 MHz.",
+      "generated_by": "scripts/spice/nfb_sensitivity.py"
+    },
+    {
+      "path": "nfb/coupled_dc_corrected.csv",
+      "provenance": "independent-SPICE",
+      "sha256": "aa7e74ecee688918b2aea29ff2ee3d67949d16c0e8a95808cc65a0bb4014a19b",
+      "description": "B18-009 coupled output network DC with corrected OT Cp=1.5 nF.",
+      "conditions": "ngspice 47; frozen rails 380/460/505/500/-55 V; Rmix/2 source; unloaded 16 ohm sensing tap injection, 1 Hz to 100 MHz.",
+      "generated_by": "scripts/spice/nfb_sensitivity.py"
+    },
+    {
+      "path": "output_transformer/ot471_linear_spice_cp15n.csv",
+      "provenance": "independent-SPICE",
+      "sha256": "ab827a0e4eed531fb5d35cfd475996d63e052cd0a9e6dc53d3510aec1bb78ca8",
+      "description": "Respuesta compleja vsec/vs del OT-471 lineal con Cp corregido a 1,5 nF (B18-009); el golden con Cp=100 pF se conserva.",
+      "conditions": "ngspice 47; fuente Thevenin Rs=45 kOhm; barrido AC 5 Hz a 200 kHz (dec 20).",
+      "generated_by": "scripts/spice/output_transformer_reference.py / speaker_load_reference.py --cp 1.5e-9"
+    },
+    {
+      "path": "speaker_load/speaker_load_spice_cp15n.csv",
+      "provenance": "independent-SPICE",
+      "sha256": "7d8b73639dd098116d3890fbe2a33a65e3637162b5b3ceafe6be14f42a331a2c",
+      "description": "Respuesta compleja vload/vs del OT-471 con carga RLC estimada y Cp corregido a 1,5 nF (B18-009); el golden con Cp=100 pF se conserva.",
+      "conditions": "ngspice 47; fuente Thevenin Rs=45 kOhm; barrido AC 5 Hz a 200 kHz (dec 20).",
+      "generated_by": "scripts/spice/output_transformer_reference.py / speaker_load_reference.py --cp 1.5e-9"
     }
   ]
 }

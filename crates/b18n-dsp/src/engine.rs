@@ -1,8 +1,10 @@
 //! Motor del B-18N. Hito C (parte 1): triodos no lineales + sobremuestreo.
 //!
 //! Cadena por sample: entrada → 6SL7#1 (Newton) → acoplo 0.022 µF → volumen →
-//! 6SL7#2 (Newton) → acoplo 0.022 µF → tono (MNA/TPT) → mezcla → inversor
-//! ideal → OT ideal con DCR → 8 Ω. El camino no lineal puede correr a 4×.
+//! 6SL7#2 (Newton) → acoplo 0.022 µF → tono (MNA/TPT) → mezcla → **etapa de
+//! salida física acoplada** (B18-009: 7199 + 2×7027A + OT-471 + NFB de 22 kΩ
+//! resueltos en la misma muestra, sin `z^-1` ni polo de compensación). El camino
+//! no lineal puede correr a 4×.
 //!
 //! El punto de reposo se resuelve con Newton al inicializar y los capacitores
 //! de acoplo se presetan a su tensión congruente: el motor arranca en reposo,
@@ -17,6 +19,7 @@ use crate::controls::{volume_fraction, InputChannel, RuntimeControls, SpeakerLoa
 use crate::numerics::oversampling::Oversampler;
 use crate::stages::channel_mixer::ChannelMixer;
 use crate::stages::input::{InputJackNetwork, InputStage};
+use crate::stages::output_network::OutputNetwork;
 use crate::stages::output_transformer::OutputTransformerConfig;
 use crate::stages::phase_splitter::{PhaseInverter7199, PhaseInverterOperatingPoint};
 use crate::stages::power_7027a::{PowerStageConfig, PushPullStage};
@@ -32,12 +35,6 @@ use crate::stages::triode_6sl7::{
 use crate::stages::tube_models::{KorenPentodeModel, KorenTriodeModel};
 use crate::state::{EngineState, OperatingPoint, StageOperatingPoint};
 use crate::utilities::db::db_to_gain;
-use crate::utilities::filters::OnePoleLowPass;
-
-/// Provisional NFB compensation retained: the B18-009 physical candidate
-/// fails independent loop-margin/transient validation (docs/B18_009_STATUS.md).
-/// Runs at the effective oversampled rate; one process-sample feedback delay.
-const FEEDBACK_COMPENSATION_CUTOFF_HZ: f64 = 2_500.0;
 use crate::utilities::smoothing::SmoothedValue;
 
 /// Tiempo de suavizado de mandos (guía §6.4: 5–30 ms). Es un tiempo **físico**:
@@ -189,7 +186,7 @@ impl B18nEngine {
     /// Carga eléctrica activa del secundario (B18-015; diagnóstico).
     #[must_use]
     pub fn effective_speaker_load(&self) -> ElectricalLoadConfig {
-        self.chain.power.load_config()
+        self.chain.output_network.load_config()
     }
 
     /// Restablece al estado de reposo resuelto al inicializar.
@@ -237,8 +234,8 @@ impl B18nEngine {
         self.chain.convergence_failures()
     }
 
-    /// Desglose de fallos por etapa (diagnóstico): triodos, inversor 7199 y
-    /// etapa de potencia.
+    /// Desglose de fallos por etapa (diagnóstico): previos 6SL7 y etapa de
+    /// salida acoplada (7199 + 7027A + OT + NFB, B18-009).
     #[must_use]
     pub fn failure_breakdown(&self) -> (u64, u64, u64) {
         (
@@ -246,8 +243,8 @@ impl B18nEngine {
                 + self.chain.channel_1.triode_2.convergence_failures()
                 + self.chain.channel_2.triode_1.convergence_failures()
                 + self.chain.channel_2.triode_2.convergence_failures(),
-            self.chain.inverter.convergence_failures(),
-            self.chain.power.convergence_failures(),
+            self.chain.output_network.convergence_failures(),
+            0,
         )
     }
 
@@ -323,8 +320,12 @@ struct LinearChain {
     channel_1: ChannelChain,
     channel_2: ChannelChain,
     mixer: ChannelMixer,
-    inverter: PhaseInverter7199,
-    power: PushPullStage,
+    /// Etapa de salida física acoplada por muestra (B18-009): 7199 + dos 7027A +
+    /// OT-471 + NFB de 22 kΩ resueltos en un solo sistema, **sin** el retardo
+    /// `z^-1` ni el polo de compensación de 2,5 kHz. Sustituye al inversor y a
+    /// la etapa de potencia separados; conserva la polaridad, la toma de 16 Ω y
+    /// la red de 22 kΩ del esquema 5/67.
+    output_network: OutputNetwork,
     /// Fuente dinámica B18-012 (Hito D): rieles por muestra con `z^-1`.
     supply: PowerSupply,
     input_trim_db: SmoothedValue,
@@ -336,29 +337,16 @@ struct LinearChain {
     /// `None` si el overlay no lo trae); `set_targets` selecciona entre ambas.
     load_resistive: ElectricalLoadConfig,
     load_lumped: Option<ElectricalLoadConfig>,
-    /// Realimentación negativa (separación explícita `z^-1`, aproximación
-    /// declarada): la muestra de la toma de 16 Ω se usa en el sample siguiente
-    /// de la tasa de proceso efectiva (no del host); el `z^-1` y el polo de
-    /// compensación avanzan al mismo ritmo.
-    feedback_enabled: bool,
-    feedback_tap_gain: f64,
-    feedback_polarity: f64,
-    feedback_state: f64,
-    feedback_lowpass: OnePoleLowPass,
 }
 
 impl LinearChain {
     /// Demanda instantánea hacia la fuente (últimas corrientes resueltas).
     fn current_load(&self) -> SupplyLoad {
-        SupplyLoad {
-            ct_a: self.power.total_plate_current_a(),
-            screen_a: self.power.total_screen_current_a(),
-            triode_a: self.inverter.triode_load_a(),
-            preamp_a: self.channel_1.supply_current_a()
-                + self.channel_2.supply_current_a()
-                + self.inverter.preamp_load_a(),
-            bias_a: self.power.total_grid_current_a(),
-        }
+        // La red de salida aporta placas/pantallas 7027A, el triodo inversor y
+        // el pentodo 7199; los dos previos 6SL7 se suman al carril previo.
+        let mut load = self.output_network.supply_load();
+        load.preamp_a += self.channel_1.supply_current_a() + self.channel_2.supply_current_a();
+        load
     }
 }
 
@@ -497,22 +485,20 @@ impl LinearChain {
                 .ok_or(EngineError::MissingSupplyData)?;
         }
 
-        let feedback_enabled = circuit.output_transformer.negative_feedback.present
-            && circuit
-                .output_transformer
-                .negative_feedback
-                .resistor_from_secondary_ohms_visible
-                > 0.0;
-        let feedback_tap_gain = circuit.output_transformer.turns_ratio_primary_to_8ohm
-            / circuit.output_transformer.turns_ratio_primary_to_16ohm;
+        // --- Etapa de salida física B18-009 ---
+        // 7199 + dos 7027A + OT-471 + NFB de 22 kΩ resueltos en un solo sistema
+        // acoplado por muestra, sin `z^-1` ni polo de compensación. Se construye
+        // tras el punto fijo de la fuente para sembrar el reposo con los rieles
+        // finales; sustituye al inversor y a la etapa de potencia separados.
+        let output_network = OutputNetwork::new(circuit, &inverter, &power)
+            .ok_or(EngineError::InvalidTransformerModel)?;
 
         Ok(Self {
             input: InputStage::new(),
             channel_1,
             channel_2,
             mixer,
-            inverter,
-            power,
+            output_network,
             supply,
             // 15 ms **físicos** a cualquier factor: `next_value()` avanza una
             // vez por muestra de proceso, de modo que escalar el tiempo por el
@@ -525,28 +511,22 @@ impl LinearChain {
             channel: InputChannel::default(),
             load_resistive,
             load_lumped,
-            feedback_enabled,
-            feedback_tap_gain,
-            feedback_polarity: -1.0,
-            feedback_state: 0.0,
-            feedback_lowpass: OnePoleLowPass::new(FEEDBACK_COMPENSATION_CUTOFF_HZ, processing_rate),
         })
     }
 
     fn operating_point(&self) -> OperatingPoint {
         let mut point = self.channel_1.operating_point();
-        point.phase_inverter = self.inverter.operating_point();
-        point.power_plate_v = self.power.plate_voltage(0);
-        point.power_idle_plate_current_a = self.power.idle_plate_current_a();
-        point.power_idle_screen_current_a = self.power.idle_screen_current_a();
+        point.phase_inverter = self.output_network.inverter_operating_point();
+        point.power_plate_v = self.output_network.power_plate_voltage();
+        point.power_idle_plate_current_a = self.output_network.idle_plate_current_a();
+        point.power_idle_screen_current_a = self.output_network.idle_screen_current_a();
         point
     }
 
     fn convergence_failures(&self) -> u64 {
         self.channel_1.convergence_failures()
             + self.channel_2.convergence_failures()
-            + self.inverter.convergence_failures()
-            + self.power.convergence_failures()
+            + self.output_network.convergence_failures()
     }
 
     fn set_targets(&mut self, controls: &RuntimeControls) {
@@ -556,21 +536,17 @@ impl LinearChain {
         self.channel_2.set_targets(controls, false);
         // Carga eléctrica del secundario (B18-015): el equivalente estimado
         // solo se aplica si existe; sin él cae a la resistencia nominal
-        // (fallback documentado, no se inventa una Z(f)).
+        // (fallback documentado, no se inventa una Z(f)). Con la NFB física
+        // B18-009 la carga RLC estimada es estable (docs/B18_009_SENSITIVITY.md),
+        // así que ya no se fuerza el fallback resistivo.
         let requested = match controls.speaker_load {
             SpeakerLoadSelection::NominalResistance => self.load_resistive,
-            // B18-009 candidate is not production-ready; keep the measured guard.
-            SpeakerLoadSelection::EstimatedLumped
-                if self.load_lumped.is_none() || self.feedback_enabled =>
-            {
-                self.load_resistive
-            }
             SpeakerLoadSelection::EstimatedLumped => {
                 self.load_lumped.unwrap_or(self.load_resistive)
             }
         };
-        if self.power.load_config() != requested {
-            self.power.set_load(requested);
+        if self.output_network.load_config() != requested {
+            self.output_network.set_load(requested);
         }
         if self.channel != controls.channel {
             // Conmutación de jack (B18-007): `bass` y `guitar` comparten el
@@ -592,8 +568,7 @@ impl LinearChain {
         self.channel_1.restore_from(&other.channel_1);
         self.channel_2.restore_from(&other.channel_2);
         self.mixer = other.mixer;
-        self.inverter = other.inverter.clone();
-        self.power = other.power.clone();
+        self.output_network = other.output_network.clone();
         self.supply = other.supply.clone();
         self.input_trim_db = other.input_trim_db;
         self.output_trim_db = other.output_trim_db;
@@ -602,11 +577,6 @@ impl LinearChain {
         self.channel = other.channel;
         self.load_resistive = other.load_resistive;
         self.load_lumped = other.load_lumped;
-        self.feedback_enabled = other.feedback_enabled;
-        self.feedback_tap_gain = other.feedback_tap_gain;
-        self.feedback_polarity = other.feedback_polarity;
-        self.feedback_state = other.feedback_state;
-        self.feedback_lowpass = other.feedback_lowpass;
     }
 
     fn process_sample(&mut self, sample: f32) -> f32 {
@@ -614,9 +584,7 @@ impl LinearChain {
         // alimentan a las etapas (`z^-1` a la tasa efectiva); tras procesar se
         // avanza la fuente con la demanda medida (sin mirar al futuro).
         let rails = self.supply.rails();
-        self.power
-            .set_rails(rails.bplus_ct_v, rails.screen_v, rails.bias_v);
-        self.inverter.set_rails(rails.preamp_v, rails.triode_v);
+        self.output_network.set_rails(rails);
         self.channel_1.set_supply_v(rails.preamp_v);
         self.channel_2.set_supply_v(rails.preamp_v);
 
@@ -633,16 +601,10 @@ impl LinearChain {
         let channel_1 = self.channel_1.process(channel_1_input);
         let channel_2 = self.channel_2.process(channel_2_input);
         let mixed = self.mixer.process(channel_1, channel_2);
-        let feedback = if self.feedback_enabled {
-            self.feedback_lowpass.process(self.feedback_state) * self.feedback_polarity
-        } else {
-            0.0
-        };
-        let (upper, lower) = self.inverter.process(mixed, feedback);
-        let secondary = self.power.process_grids(upper, lower);
-        if self.feedback_enabled {
-            self.feedback_state = secondary * self.feedback_tap_gain;
-        }
+        // Etapa de salida física B18-009: 7199 + 7027A + OT-471 + NFB de 22 kΩ
+        // resueltos acoplados por muestra (sin retardo artificial). La polaridad
+        // de realimentación negativa vive en la red (toma de 16 Ω).
+        let secondary = self.output_network.process(mixed);
         // Cierra el lazo de corriente: todas las etapas contribuyen.
         let load = self.current_load();
         self.supply.advance(load);

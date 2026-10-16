@@ -433,11 +433,11 @@ pub(crate) fn test_circuit() -> CircuitDefinition {
             dc_secondary_16ohm_winding_ohms: 0.7,
             turns_ratio_primary_to_8ohm: 23.18,
             turns_ratio_primary_to_16ohm: 16.39,
-            // Parásitos estimados del OT-471 (B18-013); espejo de
-            // `assets/models/b18n_1967_calibration.json` (método y fecha allí).
+            // Parásitos estimados del OT-471 (B18-013; Cp corregido en B18-009);
+            // espejo de `assets/models/b18n_1967_calibration.json` (método allí).
             winding_inductance_h: Some(28.7),
             leakage_inductance_h: Some(0.012),
-            parasitic_capacitance_f: Some(1e-10),
+            parasitic_capacitance_f: Some(1.5e-9),
             core_loss_ohms: Some(500.0),
             magnetizing_current_limit_a: Some(0.12),
             negative_feedback: NegativeFeedbackValues {

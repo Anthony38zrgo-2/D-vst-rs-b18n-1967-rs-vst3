@@ -1,0 +1,2131 @@
+{
+  "method": "Continuous return ratio by breaking the unloaded sensing tap, 1 V AC injection, frozen rails, 1 Hz to 100 MHz, ngspice 47.",
+  "note": "No se ajustan parametros para pasar un test; cada escenario aisla un factor del equivalente del OT-471 declarado (valores estimated del overlay).",
+  "margins": [
+    {
+      "scenario": "ideal",
+      "load": "nominal",
+      "ot": "ideal",
+      "lm": null,
+      "lleak": null,
+      "cp": null,
+      "rcore": null,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 15.465125143330445,
+          "direction": "rising",
+          "phase_margin_deg": 293.64417775300103,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 313261.2453609776,
+          "direction": "falling",
+          "phase_margin_deg": 76.62347364342294,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 1717255.8414447964,
+          "boundary_deg": -180,
+          "gain_margin_db": 23.74504469424147
+        },
+        {
+          "frequency_hz": 3934774.477851342,
+          "boundary_deg": -180,
+          "gain_margin_db": 48.9582322002114
+        },
+        {
+          "frequency_hz": 30238763.809442714,
+          "boundary_deg": -180,
+          "gain_margin_db": 62.47991162346256
+        }
+      ],
+      "hf_unity_hz": 313261.2453609776,
+      "hf_phase_margin_deg": 76.62347364342294,
+      "worst_gain_margin_db": null,
+      "gain_margin_hz": null
+    },
+    {
+      "scenario": "ideal",
+      "load": "reactiva",
+      "ot": "ideal",
+      "lm": null,
+      "lleak": null,
+      "cp": null,
+      "rcore": null,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 13.26675750827616,
+          "direction": "rising",
+          "phase_margin_deg": 335.1277531440839,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 961927.0470279548,
+          "direction": "falling",
+          "phase_margin_deg": -42.55041063532926,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 317009.60834187473,
+          "boundary_deg": -180,
+          "gain_margin_db": -23.120016786817043
+        },
+        {
+          "frequency_hz": 4464506.694156869,
+          "boundary_deg": -180,
+          "gain_margin_db": 47.74791232744993
+        },
+        {
+          "frequency_hz": 24631404.734810594,
+          "boundary_deg": -180,
+          "gain_margin_db": 57.564891686643584
+        }
+      ],
+      "hf_unity_hz": 961927.0470279548,
+      "hf_phase_margin_deg": -42.55041063532926,
+      "worst_gain_margin_db": -23.120016786817043,
+      "gain_margin_hz": 317009.60834187473
+    },
+    {
+      "scenario": "lm_only",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": null,
+      "cp": null,
+      "rcore": null,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.212630857823022,
+          "direction": "rising",
+          "phase_margin_deg": 329.6446966361251,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 313262.9197392805,
+          "direction": "falling",
+          "phase_margin_deg": 76.6277655502965,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 1717281.1964829543,
+          "boundary_deg": -180,
+          "gain_margin_db": 23.74531015996305
+        },
+        {
+          "frequency_hz": 3934770.4991931235,
+          "boundary_deg": -180,
+          "gain_margin_db": 48.9581689428057
+        },
+        {
+          "frequency_hz": 30238766.89017494,
+          "boundary_deg": -180,
+          "gain_margin_db": 62.479911961801314
+        }
+      ],
+      "hf_unity_hz": 313262.9197392805,
+      "hf_phase_margin_deg": 76.6277655502965,
+      "worst_gain_margin_db": null,
+      "gain_margin_hz": null
+    },
+    {
+      "scenario": "lm_only",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": null,
+      "cp": null,
+      "rcore": null,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.193207678321247,
+          "direction": "rising",
+          "phase_margin_deg": 355.2005698217049,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 961966.8125093224,
+          "direction": "falling",
+          "phase_margin_deg": -42.551125426996094,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 317085.68235920585,
+          "boundary_deg": -180,
+          "gain_margin_db": -23.12458080040482
+        },
+        {
+          "frequency_hz": 4464505.44934442,
+          "boundary_deg": -180,
+          "gain_margin_db": 47.747862318211816
+        },
+        {
+          "frequency_hz": 24631408.332315687,
+          "boundary_deg": -180,
+          "gain_margin_db": 57.56489151035227
+        }
+      ],
+      "hf_unity_hz": 961966.8125093224,
+      "hf_phase_margin_deg": -42.551125426996094,
+      "worst_gain_margin_db": -23.12458080040482,
+      "gain_margin_hz": 317085.68235920585
+    },
+    {
+      "scenario": "lm_lleak",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": null,
+      "rcore": null,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.21464256152176,
+          "direction": "rising",
+          "phase_margin_deg": 329.6257910186298,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 581875.8936576863,
+          "direction": "falling",
+          "phase_margin_deg": -81.47655025728523,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 473098.25883367774,
+          "boundary_deg": -180,
+          "gain_margin_db": -7.991502068433541
+        }
+      ],
+      "hf_unity_hz": 581875.8936576863,
+      "hf_phase_margin_deg": -81.47655025728523,
+      "worst_gain_margin_db": -7.991502068433541,
+      "gain_margin_hz": 473098.25883367774
+    },
+    {
+      "scenario": "lm_lleak",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": null,
+      "rcore": null,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.19431851970963,
+          "direction": "rising",
+          "phase_margin_deg": 355.19319597322857,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 952012.2679500541,
+          "direction": "falling",
+          "phase_margin_deg": -42.19057624534457,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 316889.90803048667,
+          "boundary_deg": -180,
+          "gain_margin_db": -22.880708600918584
+        },
+        {
+          "frequency_hz": 4464513.876649542,
+          "boundary_deg": -180,
+          "gain_margin_db": 47.98712614994299
+        },
+        {
+          "frequency_hz": 24631363.689469412,
+          "boundary_deg": -180,
+          "gain_margin_db": 57.804026526915145
+        }
+      ],
+      "hf_unity_hz": 952012.2679500541,
+      "hf_phase_margin_deg": -42.19057624534457,
+      "worst_gain_margin_db": -22.880708600918584,
+      "gain_margin_hz": 316889.90803048667
+    },
+    {
+      "scenario": "lm_lleak_cp",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": null,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.214301040217503,
+          "direction": "rising",
+          "phase_margin_deg": 329.6255542321265,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 213628.80795200996,
+          "direction": "falling",
+          "phase_margin_deg": -58.37057302989862,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 149880.4971842436,
+          "boundary_deg": -180,
+          "gain_margin_db": -12.185482467149653
+        }
+      ],
+      "hf_unity_hz": 213628.80795200996,
+      "hf_phase_margin_deg": -58.37057302989862,
+      "worst_gain_margin_db": -12.185482467149653,
+      "gain_margin_hz": 149880.4971842436
+    },
+    {
+      "scenario": "lm_lleak_cp",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": null,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.19398143064083,
+          "direction": "rising",
+          "phase_margin_deg": 355.19337779086857,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 324827.2000933098,
+          "direction": "falling",
+          "phase_margin_deg": -9.57292167432044,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 246728.60486071644,
+          "boundary_deg": -180,
+          "gain_margin_db": -4.970653927761968
+        },
+        {
+          "frequency_hz": 4710588.89469092,
+          "boundary_deg": -180,
+          "gain_margin_db": 70.86636802639245
+        },
+        {
+          "frequency_hz": 14927824.035903912,
+          "boundary_deg": -180,
+          "gain_margin_db": 76.80082362036563
+        }
+      ],
+      "hf_unity_hz": 324827.2000933098,
+      "hf_phase_margin_deg": -9.57292167432044,
+      "worst_gain_margin_db": -4.970653927761968,
+      "gain_margin_hz": 246728.60486071644
+    },
+    {
+      "scenario": "baseline",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.227411044011713,
+          "direction": "rising",
+          "phase_margin_deg": 329.578890186514,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 213570.71537259244,
+          "direction": "falling",
+          "phase_margin_deg": -58.63308200333168,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 149775.97777283948,
+          "boundary_deg": -180,
+          "gain_margin_db": -12.191495842012579
+        }
+      ],
+      "hf_unity_hz": 213570.71537259244,
+      "hf_phase_margin_deg": -58.63308200333168,
+      "worst_gain_margin_db": -12.191495842012579,
+      "gain_margin_hz": 149775.97777283948
+    },
+    {
+      "scenario": "baseline",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.204523621322537,
+          "direction": "rising",
+          "phase_margin_deg": 355.1687546621929,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 324649.15584822965,
+          "direction": "falling",
+          "phase_margin_deg": -10.018882691839252,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 244275.13660896063,
+          "boundary_deg": -180,
+          "gain_margin_db": -5.137911941065706
+        },
+        {
+          "frequency_hz": 4825111.639699302,
+          "boundary_deg": -180,
+          "gain_margin_db": 71.02758558940788
+        },
+        {
+          "frequency_hz": 12000906.415009465,
+          "boundary_deg": -180,
+          "gain_margin_db": 74.70513252096472
+        }
+      ],
+      "hf_unity_hz": 324649.15584822965,
+      "hf_phase_margin_deg": -10.018882691839252,
+      "worst_gain_margin_db": -5.137911941065706,
+      "gain_margin_hz": 244275.13660896063
+    },
+    {
+      "scenario": "cp_0p",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": null,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.227753024421446,
+          "direction": "rising",
+          "phase_margin_deg": 329.5791280176155,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 580180.7249835582,
+          "direction": "falling",
+          "phase_margin_deg": -79.26032744095966,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 472195.92500562296,
+          "boundary_deg": -180,
+          "gain_margin_db": -7.557901371501627
+        }
+      ],
+      "hf_unity_hz": 580180.7249835582,
+      "hf_phase_margin_deg": -79.26032744095966,
+      "worst_gain_margin_db": -7.557901371501627,
+      "gain_margin_hz": 472195.92500562296
+    },
+    {
+      "scenario": "cp_0p",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": null,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.204861217839852,
+          "direction": "rising",
+          "phase_margin_deg": 355.16857267028234,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 952012.1060061828,
+          "direction": "falling",
+          "phase_margin_deg": -42.179482390050396,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 317156.3609765696,
+          "boundary_deg": -180,
+          "gain_margin_db": -22.864352597932115
+        },
+        {
+          "frequency_hz": 4464483.621264238,
+          "boundary_deg": -180,
+          "gain_margin_db": 47.987054822959486
+        },
+        {
+          "frequency_hz": 24631550.67251411,
+          "boundary_deg": -180,
+          "gain_margin_db": 57.804143819782716
+        }
+      ],
+      "hf_unity_hz": 952012.1060061828,
+      "hf_phase_margin_deg": -42.179482390050396,
+      "worst_gain_margin_db": -22.864352597932115,
+      "gain_margin_hz": 317156.3609765696
+    },
+    {
+      "scenario": "cp_22p",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 2.2e-11,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.227677787397653,
+          "direction": "rising",
+          "phase_margin_deg": 329.57907569649257,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 353315.2180994787,
+          "direction": "falling",
+          "phase_margin_deg": -77.92714685000533,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 262024.8752417146,
+          "boundary_deg": -180,
+          "gain_margin_db": -12.83155380088512
+        }
+      ],
+      "hf_unity_hz": 353315.2180994787,
+      "hf_phase_margin_deg": -77.92714685000533,
+      "worst_gain_margin_db": -12.83155380088512,
+      "gain_margin_hz": 262024.8752417146
+    },
+    {
+      "scenario": "cp_22p",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 2.2e-11,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.20478694525559,
+          "direction": "rising",
+          "phase_margin_deg": 355.1686127108551,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 573163.6896506721,
+          "direction": "falling",
+          "phase_margin_deg": -28.942086678684518,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 260285.4783050054,
+          "boundary_deg": -180,
+          "gain_margin_db": -15.175552648342215
+        },
+        {
+          "frequency_hz": 4734475.740995151,
+          "boundary_deg": -180,
+          "gain_margin_db": 59.802412058698906
+        },
+        {
+          "frequency_hz": 13272400.025594251,
+          "boundary_deg": -180,
+          "gain_margin_db": 64.09432109696141
+        }
+      ],
+      "hf_unity_hz": 573163.6896506721,
+      "hf_phase_margin_deg": -28.942086678684518,
+      "worst_gain_margin_db": -15.175552648342215,
+      "gain_margin_hz": 260285.4783050054
+    },
+    {
+      "scenario": "cp_47p",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 4.7e-11,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.227592291692787,
+          "direction": "rising",
+          "phase_margin_deg": 329.5790162394943,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 278884.17193468835,
+          "direction": "falling",
+          "phase_margin_deg": -69.92237984278299,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 199572.45420583294,
+          "boundary_deg": -180,
+          "gain_margin_db": -13.141902776965129
+        }
+      ],
+      "hf_unity_hz": 278884.17193468835,
+      "hf_phase_margin_deg": -69.92237984278299,
+      "worst_gain_margin_db": -13.141902776965129,
+      "gain_margin_hz": 199572.45420583294
+    },
+    {
+      "scenario": "cp_47p",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 4.7e-11,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.20470254551631,
+          "direction": "rising",
+          "phase_margin_deg": 355.16865820989506,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 441710.93768882885,
+          "direction": "falling",
+          "phase_margin_deg": -20.346946536704394,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 250252.7657263931,
+          "boundary_deg": -180,
+          "gain_margin_db": -10.592436364201792
+        },
+        {
+          "frequency_hz": 4790013.058492031,
+          "boundary_deg": -180,
+          "gain_margin_db": 65.12973181797362
+        },
+        {
+          "frequency_hz": 12440899.135931734,
+          "boundary_deg": -180,
+          "gain_margin_db": 69.02089627703057
+        }
+      ],
+      "hf_unity_hz": 441710.93768882885,
+      "hf_phase_margin_deg": -20.346946536704394,
+      "worst_gain_margin_db": -10.592436364201792,
+      "gain_margin_hz": 250252.7657263931
+    },
+    {
+      "scenario": "cp_220p",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 2.2e-10,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.22700068803852,
+          "direction": "rising",
+          "phase_margin_deg": 329.5786047627349,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 157701.67330610292,
+          "direction": "falling",
+          "phase_margin_deg": -43.52530914359892,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 113158.92178780162,
+          "boundary_deg": -180,
+          "gain_margin_db": -9.654099432260638
+        }
+      ],
+      "hf_unity_hz": 157701.67330610292,
+      "hf_phase_margin_deg": -43.52530914359892,
+      "worst_gain_margin_db": -9.654099432260638,
+      "gain_margin_hz": 113158.92178780162
+    },
+    {
+      "scenario": "cp_220p",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 2.2e-10,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.204118526277746,
+          "direction": "rising",
+          "phase_margin_deg": 355.1689730162978,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 225885.74935425524,
+          "direction": "falling",
+          "phase_margin_deg": 2.2723859982367287,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 240991.60482898774,
+          "boundary_deg": -180,
+          "gain_margin_db": 1.12893106991319
+        },
+        {
+          "frequency_hz": 4844392.2214564085,
+          "boundary_deg": -180,
+          "gain_margin_db": 77.54090765037236
+        },
+        {
+          "frequency_hz": 11773724.23410233,
+          "boundary_deg": -180,
+          "gain_margin_db": 81.10438202429265
+        }
+      ],
+      "hf_unity_hz": 225885.74935425524,
+      "hf_phase_margin_deg": 2.2723859982367287,
+      "worst_gain_margin_db": null,
+      "gain_margin_hz": null
+    },
+    {
+      "scenario": "cp_470p",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 4.7e-10,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.2261458516467,
+          "direction": "rising",
+          "phase_margin_deg": 329.5780100371951,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 114853.43648730952,
+          "direction": "falling",
+          "phase_margin_deg": -25.465201906260603,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 90791.08216832417,
+          "boundary_deg": -180,
+          "gain_margin_db": -5.757489346379377
+        }
+      ],
+      "hf_unity_hz": 114853.43648730952,
+      "hf_phase_margin_deg": -25.465201906260603,
+      "worst_gain_margin_db": -5.757489346379377,
+      "gain_margin_hz": 90791.08216832417
+    },
+    {
+      "scenario": "cp_470p",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 4.7e-10,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.20327465106162,
+          "direction": "rising",
+          "phase_margin_deg": 355.1694277938959,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 153488.16419045802,
+          "direction": "falling",
+          "phase_margin_deg": 15.769149323341964,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 239441.8933517298,
+          "boundary_deg": -180,
+          "gain_margin_db": 7.45338016552693
+        },
+        {
+          "frequency_hz": 4854165.03491439,
+          "boundary_deg": -180,
+          "gain_margin_db": 83.97977843558203
+        },
+        {
+          "frequency_hz": 11669673.611733988,
+          "boundary_deg": -180,
+          "gain_margin_db": 87.49269300998161
+        }
+      ],
+      "hf_unity_hz": 153488.16419045802,
+      "hf_phase_margin_deg": 15.769149323341964,
+      "worst_gain_margin_db": null,
+      "gain_margin_hz": null
+    },
+    {
+      "scenario": "lleak_6m",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.006,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.226403789141468,
+          "direction": "rising",
+          "phase_margin_deg": 329.588345768627,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 268308.0380228921,
+          "direction": "falling",
+          "phase_margin_deg": -48.710333747041545,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 204126.90460541574,
+          "boundary_deg": -180,
+          "gain_margin_db": -7.670487956463932
+        }
+      ],
+      "hf_unity_hz": 268308.0380228921,
+      "hf_phase_margin_deg": -48.710333747041545,
+      "worst_gain_margin_db": -7.670487956463932,
+      "gain_margin_hz": 204126.90460541574
+    },
+    {
+      "scenario": "lleak_6m",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.006,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.20396795456731,
+          "direction": "rising",
+          "phase_margin_deg": 355.17244141003556,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 326752.56298558804,
+          "direction": "falling",
+          "phase_margin_deg": -10.242937556075844,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 244306.1931745787,
+          "boundary_deg": -180,
+          "gain_margin_db": -5.255486724060609
+        },
+        {
+          "frequency_hz": 4825106.819914423,
+          "boundary_deg": -180,
+          "gain_margin_db": 70.90883381229291
+        },
+        {
+          "frequency_hz": 12000928.306543877,
+          "boundary_deg": -180,
+          "gain_margin_db": 74.58639998567877
+        }
+      ],
+      "hf_unity_hz": 326752.56298558804,
+      "hf_phase_margin_deg": -10.242937556075844,
+      "worst_gain_margin_db": -5.255486724060609,
+      "gain_margin_hz": 244306.1931745787
+    },
+    {
+      "scenario": "lleak_24m",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.024,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.229426135193872,
+          "direction": "rising",
+          "phase_margin_deg": 329.5599802666468,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 165698.29010502636,
+          "direction": "falling",
+          "phase_margin_deg": -59.8225086853154,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 108425.50634609601,
+          "boundary_deg": -180,
+          "gain_margin_db": -15.914188180477952
+        }
+      ],
+      "hf_unity_hz": 165698.29010502636,
+      "hf_phase_margin_deg": -59.8225086853154,
+      "worst_gain_margin_db": -15.914188180477952,
+      "gain_margin_hz": 108425.50634609601
+    },
+    {
+      "scenario": "lleak_24m",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.024,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.205634947507015,
+          "direction": "rising",
+          "phase_margin_deg": 355.16138212048907,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 320559.96286344476,
+          "direction": "falling",
+          "phase_margin_deg": -9.579201725658606,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 244215.49542472872,
+          "boundary_deg": -180,
+          "gain_margin_db": -4.907430284930287
+        },
+        {
+          "frequency_hz": 4825120.896934082,
+          "boundary_deg": -180,
+          "gain_margin_db": 71.26032674199601
+        },
+        {
+          "frequency_hz": 12000864.368301641,
+          "boundary_deg": -180,
+          "gain_margin_db": 74.93783671563321
+        }
+      ],
+      "hf_unity_hz": 320559.96286344476,
+      "hf_phase_margin_deg": -9.579201725658606,
+      "worst_gain_margin_db": -4.907430284930287,
+      "gain_margin_hz": 244215.49542472872
+    },
+    {
+      "scenario": "lleak_48m",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.048,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.233458642629987,
+          "direction": "rising",
+          "phase_margin_deg": 329.52216540993913,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 126985.45180174329,
+          "direction": "falling",
+          "phase_margin_deg": -55.9082075349057,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 78204.53979802756,
+          "boundary_deg": -180,
+          "gain_margin_db": -18.35254901141131
+        }
+      ],
+      "hf_unity_hz": 126985.45180174329,
+      "hf_phase_margin_deg": -55.9082075349057,
+      "worst_gain_margin_db": -18.35254901141131,
+      "gain_margin_hz": 78204.53979802756
+    },
+    {
+      "scenario": "lleak_48m",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.048,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.20785757049732,
+          "direction": "rising",
+          "phase_margin_deg": 355.1466408519602,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 312816.4438113935,
+          "direction": "falling",
+          "phase_margin_deg": -8.731310047726225,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 244105.22905952507,
+          "boundary_deg": -180,
+          "gain_margin_db": -4.464035528957307
+        },
+        {
+          "frequency_hz": 4825138.016494734,
+          "boundary_deg": -180,
+          "gain_margin_db": 71.7078961158366
+        },
+        {
+          "frequency_hz": 12000786.609895475,
+          "boundary_deg": -180,
+          "gain_margin_db": 75.3853377403563
+        }
+      ],
+      "hf_unity_hz": 312816.4438113935,
+      "hf_phase_margin_deg": -8.731310047726225,
+      "worst_gain_margin_db": -4.464035528957307,
+      "gain_margin_hz": 244105.22905952507
+    },
+    {
+      "scenario": "rcore_0",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": null,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.214301040217503,
+          "direction": "rising",
+          "phase_margin_deg": 329.6255542321265,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 213628.80795200996,
+          "direction": "falling",
+          "phase_margin_deg": -58.37057302989862,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 149880.4971842436,
+          "boundary_deg": -180,
+          "gain_margin_db": -12.185482467149653
+        }
+      ],
+      "hf_unity_hz": 213628.80795200996,
+      "hf_phase_margin_deg": -58.37057302989862,
+      "worst_gain_margin_db": -12.185482467149653,
+      "gain_margin_hz": 149880.4971842436
+    },
+    {
+      "scenario": "rcore_0",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": null,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.19398143064083,
+          "direction": "rising",
+          "phase_margin_deg": 355.19337779086857,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 324827.2000933098,
+          "direction": "falling",
+          "phase_margin_deg": -9.57292167432044,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 246728.60486071644,
+          "boundary_deg": -180,
+          "gain_margin_db": -4.970653927761968
+        },
+        {
+          "frequency_hz": 4710588.89469092,
+          "boundary_deg": -180,
+          "gain_margin_db": 70.86636802639245
+        },
+        {
+          "frequency_hz": 14927824.035903912,
+          "boundary_deg": -180,
+          "gain_margin_db": 76.80082362036563
+        }
+      ],
+      "hf_unity_hz": 324827.2000933098,
+      "hf_phase_margin_deg": -9.57292167432044,
+      "worst_gain_margin_db": -4.970653927761968,
+      "gain_margin_hz": 246728.60486071644
+    },
+    {
+      "scenario": "rcore_100",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 100.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.216923571286692,
+          "direction": "rising",
+          "phase_margin_deg": 329.6162172163039,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 213617.29301160935,
+          "direction": "falling",
+          "phase_margin_deg": -58.42318549014894,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 149859.5526516911,
+          "boundary_deg": -180,
+          "gain_margin_db": -12.186699560310037
+        }
+      ],
+      "hf_unity_hz": 213617.29301160935,
+      "hf_phase_margin_deg": -58.42318549014894,
+      "worst_gain_margin_db": -12.186699560310037,
+      "gain_margin_hz": 149859.5526516911
+    },
+    {
+      "scenario": "rcore_100",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 100.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.196090397546406,
+          "direction": "rising",
+          "phase_margin_deg": 355.1884509127135,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 324792.3669998112,
+          "direction": "falling",
+          "phase_margin_deg": -9.662325097113012,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 246231.38955803163,
+          "boundary_deg": -180,
+          "gain_margin_db": -5.00448682906186
+        },
+        {
+          "frequency_hz": 4731637.227131998,
+          "boundary_deg": -180,
+          "gain_margin_db": 70.90173750377203
+        },
+        {
+          "frequency_hz": 14192532.728293207,
+          "boundary_deg": -180,
+          "gain_margin_db": 76.26026301443206
+        }
+      ],
+      "hf_unity_hz": 324792.3669998112,
+      "hf_phase_margin_deg": -9.662325097113012,
+      "worst_gain_margin_db": -5.00448682906186,
+      "gain_margin_hz": 246231.38955803163
+    },
+    {
+      "scenario": "rcore_2000",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 2000.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.266701363669856,
+          "direction": "rising",
+          "phase_margin_deg": 329.43921265660856,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 213388.76432806594,
+          "direction": "falling",
+          "phase_margin_deg": -59.412210285118164,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 149469.04439893906,
+          "boundary_deg": -180,
+          "gain_margin_db": -12.206184106323649
+        }
+      ],
+      "hf_unity_hz": 213388.76432806594,
+      "hf_phase_margin_deg": -59.412210285118164,
+      "worst_gain_margin_db": -12.206184106323649,
+      "gain_margin_hz": 149469.04439893906
+    },
+    {
+      "scenario": "rcore_2000",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 2000.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.236110623057197,
+          "direction": "rising",
+          "phase_margin_deg": 355.0950537202177,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 324057.8321303117,
+          "direction": "falling",
+          "phase_margin_deg": -11.340292680910466,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 237368.03467704984,
+          "boundary_deg": -180,
+          "gain_margin_db": -5.613684956113688
+        },
+        {
+          "frequency_hz": 5380207.91202464,
+          "boundary_deg": -180,
+          "gain_margin_db": 71.52700648689354
+        },
+        {
+          "frequency_hz": 7824013.004132163,
+          "boundary_deg": -180,
+          "gain_margin_db": 72.37459830008972
+        }
+      ],
+      "hf_unity_hz": 324057.8321303117,
+      "hf_phase_margin_deg": -11.340292680910466,
+      "worst_gain_margin_db": -5.613684956113688,
+      "gain_margin_hz": 237368.03467704984
+    },
+    {
+      "scenario": "lm_14h",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 14.0,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 27.74132087135393,
+          "direction": "rising",
+          "phase_margin_deg": 328.39999631189414,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 213586.7196983995,
+          "direction": "falling",
+          "phase_margin_deg": -58.63659738690623,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 149799.46120172789,
+          "boundary_deg": -180,
+          "gain_margin_db": -12.192262437448596
+        }
+      ],
+      "hf_unity_hz": 213586.7196983995,
+      "hf_phase_margin_deg": -58.63659738690623,
+      "worst_gain_margin_db": -12.192262437448596,
+      "gain_margin_hz": 149799.46120172789
+    },
+    {
+      "scenario": "lm_14h",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 14.0,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 27.39068955768181,
+          "direction": "rising",
+          "phase_margin_deg": 348.9365857396894,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 324661.5690498778,
+          "direction": "falling",
+          "phase_margin_deg": -10.020168813681238,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 244276.0322341906,
+          "boundary_deg": -180,
+          "gain_margin_db": -5.139100224857873
+        },
+        {
+          "frequency_hz": 4825111.626325235,
+          "boundary_deg": -180,
+          "gain_margin_db": 71.02758237212855
+        },
+        {
+          "frequency_hz": 12000906.441281106,
+          "boundary_deg": -180,
+          "gain_margin_db": 74.70513201393344
+        }
+      ],
+      "hf_unity_hz": 324661.5690498778,
+      "hf_phase_margin_deg": -10.020168813681238,
+      "worst_gain_margin_db": -5.139100224857873,
+      "gain_margin_hz": 244276.0322341906
+    },
+    {
+      "scenario": "lm_57h",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 57.0,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 17.81861758487745,
+          "direction": "rising",
+          "phase_margin_deg": 322.94992589473,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 213563.14729229079,
+          "direction": "falling",
+          "phase_margin_deg": -58.63141992663364,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 149764.8707928059,
+          "boundary_deg": -180,
+          "gain_margin_db": -12.191134653583774
+        }
+      ],
+      "hf_unity_hz": 213563.14729229079,
+      "hf_phase_margin_deg": -58.63141992663364,
+      "worst_gain_margin_db": -12.191134653583774,
+      "gain_margin_hz": 149764.8707928059
+    },
+    {
+      "scenario": "lm_57h",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 57.0,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 17.616101318395796,
+          "direction": "rising",
+          "phase_margin_deg": 354.6613126711187,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 324643.28613673296,
+          "direction": "falling",
+          "phase_margin_deg": -10.018274517890262,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 244274.71319837254,
+          "boundary_deg": -180,
+          "gain_margin_db": -5.137350112937967
+        },
+        {
+          "frequency_hz": 4825111.64602321,
+          "boundary_deg": -180,
+          "gain_margin_db": 71.02758711069409
+        },
+        {
+          "frequency_hz": 12000906.402586963,
+          "boundary_deg": -180,
+          "gain_margin_db": 74.70513276071385
+        }
+      ],
+      "hf_unity_hz": 324643.28613673296,
+      "hf_phase_margin_deg": -10.018274517890262,
+      "worst_gain_margin_db": -5.137350112937967,
+      "gain_margin_hz": 244274.71319837254
+    },
+    {
+      "scenario": "no_caps",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "caps": false,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.225130478982972,
+          "direction": "rising",
+          "phase_margin_deg": 329.6150275365063,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 335155.5774082561,
+          "direction": "falling",
+          "phase_margin_deg": 13.161011443741472,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [],
+      "hf_unity_hz": 335155.5774082561,
+      "hf_phase_margin_deg": 13.161011443741472,
+      "worst_gain_margin_db": null,
+      "gain_margin_hz": null
+    },
+    {
+      "scenario": "no_caps",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "caps": false,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.20297372712737,
+          "direction": "rising",
+          "phase_margin_deg": 355.1993097404261,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 1594979.3911958796,
+          "direction": "falling",
+          "phase_margin_deg": 90.13224327380142,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [],
+      "hf_unity_hz": 1594979.3911958796,
+      "hf_phase_margin_deg": 90.13224327380142,
+      "worst_gain_margin_db": null,
+      "gain_margin_hz": null
+    },
+    {
+      "scenario": "source_220k",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "source_ohms": 220000.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.227209579829147,
+          "direction": "rising",
+          "phase_margin_deg": 329.57575245362,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 199836.69423751373,
+          "direction": "falling",
+          "phase_margin_deg": -59.80082276989404,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 145244.58366425865,
+          "boundary_deg": -180,
+          "gain_margin_db": -10.896049675021699
+        }
+      ],
+      "hf_unity_hz": 199836.69423751373,
+      "hf_phase_margin_deg": -59.80082276989404,
+      "worst_gain_margin_db": -10.896049675021699,
+      "gain_margin_hz": 145244.58366425865
+    },
+    {
+      "scenario": "source_220k",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "source_ohms": 220000.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.204362237829503,
+          "direction": "rising",
+          "phase_margin_deg": 355.1652831649303,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 281903.7932539597,
+          "direction": "falling",
+          "phase_margin_deg": -12.450997261315933,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 195419.29091533806,
+          "boundary_deg": -180,
+          "gain_margin_db": -6.717370296721526
+        },
+        {
+          "frequency_hz": 3699098.7722708667,
+          "boundary_deg": -180,
+          "gain_margin_db": 67.25669637264774
+        },
+        {
+          "frequency_hz": 12003977.131477226,
+          "boundary_deg": -180,
+          "gain_margin_db": 74.1982054776268
+        }
+      ],
+      "hf_unity_hz": 281903.7932539597,
+      "hf_phase_margin_deg": -12.450997261315933,
+      "worst_gain_margin_db": -6.717370296721526,
+      "gain_margin_hz": 195419.29091533806
+    },
+    {
+      "scenario": "source_270k",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "source_ohms": 270000.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.227091098709327,
+          "direction": "rising",
+          "phase_margin_deg": 329.57390662138624,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 193542.4175835574,
+          "direction": "falling",
+          "phase_margin_deg": -59.236071925713446,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 143479.37858602506,
+          "boundary_deg": -180,
+          "gain_margin_db": -10.098669095522856
+        }
+      ],
+      "hf_unity_hz": 193542.4175835574,
+      "hf_phase_margin_deg": -59.236071925713446,
+      "worst_gain_margin_db": -10.098669095522856,
+      "gain_margin_hz": 143479.37858602506
+    },
+    {
+      "scenario": "source_270k",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "source_ohms": 270000.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.20426732767627,
+          "direction": "rising",
+          "phase_margin_deg": 355.16324103758615,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 263708.559448549,
+          "direction": "falling",
+          "phase_margin_deg": -12.933838385215068,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 178191.59368429205,
+          "boundary_deg": -180,
+          "gain_margin_db": -7.218320819480065
+        },
+        {
+          "frequency_hz": 3310116.863940423,
+          "boundary_deg": -180,
+          "gain_margin_db": 65.58078405079216
+        },
+        {
+          "frequency_hz": 12000496.348110326,
+          "boundary_deg": -180,
+          "gain_margin_db": 74.04879824020435
+        }
+      ],
+      "hf_unity_hz": 263708.559448549,
+      "hf_phase_margin_deg": -12.933838385215068,
+      "worst_gain_margin_db": -7.218320819480065,
+      "gain_margin_hz": 178191.59368429205
+    },
+    {
+      "scenario": "source_330k",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "source_ohms": 330000.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.2269489479827,
+          "direction": "rising",
+          "phase_margin_deg": 329.57169151808324,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 187197.15984654002,
+          "direction": "falling",
+          "phase_margin_deg": -57.88555643412619,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 141878.1778423772,
+          "boundary_deg": -180,
+          "gain_margin_db": -9.171088051019062
+        }
+      ],
+      "hf_unity_hz": 187197.15984654002,
+      "hf_phase_margin_deg": -57.88555643412619,
+      "worst_gain_margin_db": -9.171088051019062,
+      "gain_margin_hz": 141878.1778423772
+    },
+    {
+      "scenario": "source_330k",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "source_ohms": 330000.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.20415345633183,
+          "direction": "rising",
+          "phase_margin_deg": 355.16079041620316,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 246094.04474432435,
+          "direction": "falling",
+          "phase_margin_deg": -13.099126063161265,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 163022.51212911736,
+          "boundary_deg": -180,
+          "gain_margin_db": -7.609836717777332
+        },
+        {
+          "frequency_hz": 2967595.959261833,
+          "boundary_deg": -180,
+          "gain_margin_db": 63.883075475171154
+        },
+        {
+          "frequency_hz": 11996420.347069392,
+          "boundary_deg": -180,
+          "gain_margin_db": 73.92909471601986
+        }
+      ],
+      "hf_unity_hz": 246094.04474432435,
+      "hf_phase_margin_deg": -13.099126063161265,
+      "worst_gain_margin_db": -7.609836717777332,
+      "gain_margin_hz": 163022.51212911736
+    },
+    {
+      "scenario": "source_tone",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "source_tone": true,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.227855014632578,
+          "direction": "rising",
+          "phase_margin_deg": 329.56305394743697,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 194015.44292115787,
+          "direction": "falling",
+          "phase_margin_deg": -59.2838181230602,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 143618.30579310821,
+          "boundary_deg": -180,
+          "gain_margin_db": -10.160248027902156
+        }
+      ],
+      "hf_unity_hz": 194015.44292115787,
+      "hf_phase_margin_deg": -59.2838181230602,
+      "worst_gain_margin_db": -10.160248027902156,
+      "gain_margin_hz": 143618.30579310821
+    },
+    {
+      "scenario": "source_tone",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "source_tone": true,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.2048787993507,
+          "direction": "rising",
+          "phase_margin_deg": 355.15367989381235,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 265055.760009507,
+          "direction": "falling",
+          "phase_margin_deg": -12.89396224999308,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 179517.32708770985,
+          "boundary_deg": -180,
+          "gain_margin_db": -7.173290083047833
+        },
+        {
+          "frequency_hz": 3337944.984621512,
+          "boundary_deg": -180,
+          "gain_margin_db": 65.70599325199886
+        },
+        {
+          "frequency_hz": 12000782.997831108,
+          "boundary_deg": -180,
+          "gain_margin_db": 74.05894612768917
+        }
+      ],
+      "hf_unity_hz": 265055.760009507,
+      "hf_phase_margin_deg": -12.89396224999308,
+      "worst_gain_margin_db": -7.173290083047833,
+      "gain_margin_hz": 179517.32708770985
+    },
+    {
+      "scenario": "inverted_polarity",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "polarity": -1,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.227411044011713,
+          "direction": "rising",
+          "phase_margin_deg": 149.578890186514,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 213570.71537259244,
+          "direction": "falling",
+          "phase_margin_deg": -238.6330820033317,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 2188.113121835988,
+          "boundary_deg": -180,
+          "gain_margin_db": -12.823066636868267
+        },
+        {
+          "frequency_hz": 47129438.677708335,
+          "boundary_deg": -540,
+          "gain_margin_db": 158.30295734086087
+        }
+      ],
+      "hf_unity_hz": 213570.71537259244,
+      "hf_phase_margin_deg": -238.6330820033317,
+      "worst_gain_margin_db": -12.823066636868267,
+      "gain_margin_hz": 2188.113121835988
+    },
+    {
+      "scenario": "inverted_polarity",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "polarity": -1,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.204523621322537,
+          "direction": "rising",
+          "phase_margin_deg": 175.1687546621929,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 324649.15584822965,
+          "direction": "falling",
+          "phase_margin_deg": -190.01888269183928,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 143.39332130485283,
+          "boundary_deg": -180,
+          "gain_margin_db": -15.279861714820848
+        },
+        {
+          "frequency_hz": 253.7335047015617,
+          "boundary_deg": -180,
+          "gain_margin_db": -12.20906737121549
+        },
+        {
+          "frequency_hz": 22404.517937542627,
+          "boundary_deg": -180,
+          "gain_margin_db": -49.0547891033718
+        }
+      ],
+      "hf_unity_hz": 324649.15584822965,
+      "hf_phase_margin_deg": -190.01888269183928,
+      "worst_gain_margin_db": -15.279861714820848,
+      "gain_margin_hz": 143.39332130485283
+    },
+    {
+      "scenario": "tap8",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "tap": "8",
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 26.044177290719475,
+          "direction": "rising",
+          "phase_margin_deg": 313.8084697719924,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 195908.09383630156,
+          "direction": "falling",
+          "phase_margin_deg": -49.61615567658552,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 149775.97777283948,
+          "boundary_deg": -180,
+          "gain_margin_db": -9.180806280871018
+        }
+      ],
+      "hf_unity_hz": 195908.09383630156,
+      "hf_phase_margin_deg": -49.61615567658552,
+      "worst_gain_margin_db": -9.180806280871018,
+      "gain_margin_hz": 149775.97777283948
+    },
+    {
+      "scenario": "tap8",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1e-10,
+      "rcore": 500.0,
+      "tap": "8",
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 24.733160862077796,
+          "direction": "rising",
+          "phase_margin_deg": 347.22613616384456,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 275233.92687624646,
+          "direction": "falling",
+          "phase_margin_deg": -4.210275239876353,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 244275.13660896063,
+          "boundary_deg": -180,
+          "gain_margin_db": -2.127222379924145
+        },
+        {
+          "frequency_hz": 4825111.639699302,
+          "boundary_deg": -180,
+          "gain_margin_db": 74.03827515054944
+        },
+        {
+          "frequency_hz": 12000906.415009465,
+          "boundary_deg": -180,
+          "gain_margin_db": 77.71582208210629
+        }
+      ],
+      "hf_unity_hz": 275233.92687624646,
+      "hf_phase_margin_deg": -4.210275239876353,
+      "worst_gain_margin_db": -2.127222379924145,
+      "gain_margin_hz": 244275.13660896063
+    },
+    {
+      "scenario": "corrected_cp1500p",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1.5e-09,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.22262495004312,
+          "direction": "rising",
+          "phase_margin_deg": 329.5755584485594,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 65115.767551098055,
+          "direction": "falling",
+          "phase_margin_deg": 10.293483115521099,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 73433.34741602973,
+          "boundary_deg": -180,
+          "gain_margin_db": 2.250540147411797
+        }
+      ],
+      "hf_unity_hz": 65115.767551098055,
+      "hf_phase_margin_deg": 10.293483115521099,
+      "worst_gain_margin_db": null,
+      "gain_margin_hz": null
+    },
+    {
+      "scenario": "corrected_cp1500p",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1.5e-09,
+      "rcore": 500.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.19979892267371,
+          "direction": "rising",
+          "phase_margin_deg": 355.17129967080825,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 77013.04799443504,
+          "direction": "falling",
+          "phase_margin_deg": 40.5918970133182,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 238475.47290388157,
+          "boundary_deg": -180,
+          "gain_margin_db": 17.367168108844186
+        },
+        {
+          "frequency_hz": 4860240.959057706,
+          "boundary_deg": -180,
+          "gain_margin_db": 93.96518003991018
+        },
+        {
+          "frequency_hz": 11605865.044806447,
+          "boundary_deg": -180,
+          "gain_margin_db": 97.44661123812651
+        }
+      ],
+      "hf_unity_hz": 77013.04799443504,
+      "hf_phase_margin_deg": 40.5918970133182,
+      "worst_gain_margin_db": null,
+      "gain_margin_hz": null
+    },
+    {
+      "scenario": "corrected_cp1500p_rw900",
+      "load": "nominal",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1.5e-09,
+      "rcore": 500.0,
+      "r_wind": 900.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 22.543253768140588,
+          "direction": "rising",
+          "phase_margin_deg": 330.06510289144484,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 60914.43363671301,
+          "direction": "falling",
+          "phase_margin_deg": 20.732674777453553,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 78207.05834474982,
+          "boundary_deg": -180,
+          "gain_margin_db": 4.341451086997396
+        }
+      ],
+      "hf_unity_hz": 60914.43363671301,
+      "hf_phase_margin_deg": 20.732674777453553,
+      "worst_gain_margin_db": null,
+      "gain_margin_hz": null
+    },
+    {
+      "scenario": "corrected_cp1500p_rw900",
+      "load": "reactiva",
+      "ot": "linear",
+      "lm": 28.7,
+      "lleak": 0.012,
+      "cp": 1.5e-09,
+      "rcore": 500.0,
+      "r_wind": 900.0,
+      "unity_gain_crossings": [
+        {
+          "frequency_hz": 21.64491072008458,
+          "direction": "rising",
+          "phase_margin_deg": 357.7450103249698,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 77008.77861129251,
+          "direction": "falling",
+          "phase_margin_deg": 40.836523482635755,
+          "gain_db": 0.0
+        }
+      ],
+      "phase_crossings": [
+        {
+          "frequency_hz": 239009.40207125654,
+          "boundary_deg": -180,
+          "gain_margin_db": 17.406244305100422
+        },
+        {
+          "frequency_hz": 4860147.97159479,
+          "boundary_deg": -180,
+          "gain_margin_db": 93.96533311257679
+        },
+        {
+          "frequency_hz": 11606260.94544064,
+          "boundary_deg": -180,
+          "gain_margin_db": 97.4470562472852
+        }
+      ],
+      "hf_unity_hz": 77008.77861129251,
+      "hf_phase_margin_deg": 40.836523482635755,
+      "worst_gain_margin_db": null,
+      "gain_margin_hz": null
+    }
+  ]
+}
