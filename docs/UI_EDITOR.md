@@ -19,7 +19,7 @@ Only the editor-size persistence key is revisioned for the enlarged layout; audi
 
 Validation:
 
-- cargo test -p b18n-plugin --lib: 7 passing, including manual opening, cabinet host gesture,
+- cargo test -p b18n-plugin --lib: 9 passing, including manual opening, cabinet host gesture,
   knob drag gesture and real egui mesh rendering.
 - cargo clippy -p b18n-plugin --all-targets -- -D warnings: passed.
 - cargo xtask bundle b18n-plugin --release: Windows VST3 bundle.
@@ -46,3 +46,18 @@ The input-jack interaction test checks all three host parameter gestures.
 
 Cable overlay correction: female socket hardware has been removed from the cable image.
 The selected male plug is drawn onto the single original socket already in the head artwork.
+
+Bilingual and control revision:
+- ENG / ESP buttons select English or Spanish for the complete editor, tooltips, settings,
+  hardware input labels and manual. Branding, abbreviations and the original font license
+  remain unchanged. `ui-language` is persisted with the instance, defaulting to Spanish;
+  it is UI state, not an audio parameter, so the 13 automation IDs remain unchanged.
+- Percentages are keyboard-editable: click to select the current value, enter 0..100,
+  Enter or focus loss commits a valid value, Escape cancels. Dot and comma decimals
+  are accepted; invalid/out-of-range/nonfinite input never writes to the host.
+- Switch uses one full transparent sprite, rotated around the mounting pivot. The old
+  circular nut crop plus rectangular lever crop are no longer used.
+- Buttons, value fields, trim bars and windows have subtly rounded corners. Trim bars
+  keep host gesture begin/update/end notifications; their numeric dB fields remain editable.
+- Language switching and keyboard percentage commit/cancel are covered by input-driven tests.
+Preview options: B18N_UI_PREVIEW_LANG=en, B18N_UI_PREVIEW_CAB_ON=1.

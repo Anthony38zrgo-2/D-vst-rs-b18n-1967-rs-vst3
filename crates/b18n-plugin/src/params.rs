@@ -134,6 +134,8 @@ impl From<LoadModelParam> for SpeakerLoadSelection {
 pub struct B18nParams {
     #[persist = "editor-state-layout-v3"]
     pub editor_state: std::sync::Arc<nih_plug_egui::EguiState>,
+    #[persist = "ui-language"]
+    pub ui_language: Mutex<String>,
     /// Conector de entrada (Bass/Guitar comparten el canal 1; Instrument el 2).
     #[id = "channel"]
     pub channel: EnumParam<ChannelParam>,
@@ -226,6 +228,7 @@ impl Default for B18nParams {
                 crate::editor::WIDTH,
                 crate::editor::HEIGHT,
             ),
+            ui_language: Mutex::new("es".to_string()),
             channel: EnumParam::new("Channel", ChannelParam::default()),
             speaker: EnumParam::new("Speaker", SpeakerParam::default()),
             input_trim_db: trim("Input Trim", 0.0),

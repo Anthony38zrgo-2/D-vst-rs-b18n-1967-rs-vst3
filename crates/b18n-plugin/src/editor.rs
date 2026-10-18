@@ -1,8 +1,47 @@
 //! Illustrated editor. All parameter writes go through the host's gesture API.
-use crate::params::{B18nParams, ChannelParam, LoadModelParam, SpeakerParam};
+use crate::params::{B18nParams, ChannelParam, LoadModelParam, OversamplingFactor, SpeakerParam};
 use nih_plug::prelude::*;
-use nih_plug_egui::{create_egui_editor, egui::*, widgets::ParamSlider};
+use nih_plug_egui::{create_egui_editor, egui::*};
 use std::sync::Arc;
+#[path = "editor_manual.rs"]
+mod manual_text;
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum Language {
+    English,
+    #[default]
+    Spanish,
+}
+impl Language {
+    fn tr(self, es: &'static str, en: &'static str) -> &'static str {
+        if self == Self::Spanish {
+            es
+        } else {
+            en
+        }
+    }
+    fn code(self) -> &'static str {
+        if self == Self::Spanish {
+            "es"
+        } else {
+            "en"
+        }
+    }
+}
+struct PercentEdit {
+    knob: usize,
+    text: String,
+    focus: bool,
+}
+fn parse_percent(text: &str) -> Option<f32> {
+    let value: f32 = text
+        .trim()
+        .trim_end_matches('%')
+        .trim()
+        .replace(',', ".")
+        .parse()
+        .ok()?;
+    (value.is_finite() && (0.0..=100.0).contains(&value)).then_some(value / 100.0)
+}
 
 const BLUE: Color32 = Color32::from_rgb(159, 192, 213);
 const INK: Color32 = Color32::from_rgb(20, 43, 65);
@@ -32,6 +71,8 @@ fn brand_text(ui: &Ui, at: Pos2, text: &str, size: f32) {
 #[derive(Default)]
 struct State {
     textures: Vec<TextureHandle>,
+    language: Language,
+    percent_edit: Option<PercentEdit>,
     manual: bool,
     settings: bool,
     last_speaker: Option<SpeakerParam>,
@@ -103,8 +144,8 @@ fn knob(
     param: &FloatParam,
     tex: TextureId,
     center: Pos2,
-    title: &str,
     id: usize,
+    state: &mut State,
 ) {
     let rect = Rect::from_center_size(center, vec2(60.0, 66.0) * CONTROL_SCALE);
     let response = ui.interact(rect, Id::new(("knob", id)), Sense::click_and_drag());
@@ -159,14 +200,150 @@ fn knob(
         pos2(0.5, 0.505),
         0.195,
     );
+    let lang = state.language;
+    let title = match id % 3 {
+        0 => lang.tr("VOLUMEN", "VOLUME"),
+        1 => lang.tr("AGUDOS", "TREBLE"),
+        _ => lang.tr("GRAVES", "BASS"),
+    };
     label(ui, center + vec2(0.0, 58.0) * CONTROL_SCALE, title, 12.0);
-    label(
-        ui,
-        center + vec2(0.0, 72.0) * CONTROL_SCALE,
-        &format!("{:.0}%", param.value() * 100.0),
-        9.5,
+    let value_rect =
+        Rect::from_center_size(center + vec2(0.0, 72.0) * CONTROL_SCALE, vec2(60.0, 20.0));
+    if let Some(edit) = state.percent_edit.as_mut().filter(|edit| edit.knob == id) {
+        let mut output = ui
+            .scope_builder(UiBuilder::new().max_rect(value_rect), |ui| {
+                TextEdit::singleline(&mut edit.text)
+                    .id(Id::new(("percent-edit", id)))
+                    .font(FontId::proportional(13.0))
+                    .horizontal_align(Align::Center)
+                    .margin(vec2(2.0, 1.0))
+                    .desired_width(56.0)
+                    .show(ui)
+            })
+            .inner;
+        if edit.focus {
+            output.response.request_focus();
+            output
+                .state
+                .cursor
+                .set_char_range(Some(text::CCursorRange::two(
+                    text::CCursor::new(0),
+                    text::CCursor::new(edit.text.chars().count()),
+                )));
+            output.state.store(ui.ctx(), output.response.id);
+            edit.focus = false;
+        } else if ui.input(|i| i.key_pressed(Key::Escape)) {
+            state.percent_edit = None;
+        } else if ui.input(|i| i.key_pressed(Key::Enter)) || output.response.lost_focus() {
+            if let Some(value) = parse_percent(&edit.text) {
+                set(setter, param, value);
+                state.percent_edit = None;
+            } else if output.response.lost_focus() {
+                state.percent_edit = None;
+            } else {
+                output.response.request_focus();
+                output.response.on_hover_text(lang.tr(
+                    "Escribe un valor entre 0 y 100",
+                    "Enter a value from 0 to 100",
+                ));
+            }
+        }
+    } else if ui
+        .put(
+            value_rect,
+            Button::new(
+                RichText::new(format!(
+                    "{}%",
+                    format!("{:.1}", param.value() * 100.0)
+                        .trim_end_matches('0')
+                        .trim_end_matches('.')
+                ))
+                .size(13.0),
+            )
+            .fill(Color32::from_white_alpha(40))
+            .corner_radius(4),
+        )
+        .on_hover_text(lang.tr(
+            "Haz clic para escribir un porcentaje",
+            "Click to type a percentage",
+        ))
+        .clicked()
+    {
+        state.percent_edit = Some(PercentEdit {
+            knob: id,
+            text: format!("{:.1}", param.value() * 100.0)
+                .trim_end_matches('0')
+                .trim_end_matches('.')
+                .to_string(),
+            focus: true,
+        });
+    }
+    response.on_hover_text(lang.tr(
+        "Arrastra para ajustar; Shift: ajuste fino; doble clic: restablecer",
+        "Drag to adjust; Shift: fine adjustment; double-click: reset",
+    ));
+}
+
+fn rounded_trim(ui: &mut Ui, param: &FloatParam, setter: &ParamSetter) {
+    let (rect, response) = ui.allocate_exact_size(vec2(150.0, 20.0), Sense::click_and_drag());
+    let normalized = param.modulated_normalized_value();
+    ui.painter()
+        .rect_filled(rect, 5.0, Color32::from_rgb(225, 230, 233));
+    let filled = Rect::from_min_size(rect.min, vec2(rect.width() * normalized, rect.height()));
+    ui.painter().rect_filled(filled, 5.0, BLUE);
+    ui.painter().rect_stroke(
+        rect,
+        5.0,
+        Stroke::new(0.7, INK.gamma_multiply(0.4)),
+        StrokeKind::Inside,
     );
-    response.on_hover_text("Arrastra para ajustar · Shift: ajuste fino · Doble clic: restablecer");
+    if response.drag_started() {
+        setter.begin_set_parameter(param);
+    }
+    if response.dragged() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            setter.set_parameter_normalized(
+                param,
+                ((pos.x - rect.min.x) / rect.width()).clamp(0.0, 1.0),
+            );
+        }
+    }
+    if response.drag_stopped() {
+        setter.end_set_parameter(param);
+    }
+    if response.clicked() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            set(
+                setter,
+                param,
+                param.preview_plain(((pos.x - rect.min.x) / rect.width()).clamp(0.0, 1.0)),
+            );
+        }
+    }
+    if response.double_clicked() {
+        set(setter, param, param.default_plain_value());
+    }
+    let mut value = param.value();
+    let edit = ui.add(
+        DragValue::new(&mut value)
+            .speed(0.1)
+            .range(param.preview_plain(0.0)..=param.preview_plain(1.0))
+            .fixed_decimals(1)
+            .suffix(" dB"),
+    );
+    if edit.drag_started() {
+        setter.begin_set_parameter(param);
+    }
+    if edit.changed() {
+        if edit.dragged() {
+            setter.set_parameter(param, value);
+        } else {
+            set(setter, param, value);
+        }
+    }
+    if edit.drag_stopped() {
+        setter.end_set_parameter(param);
+    }
 }
 
 fn setup(ctx: &Context, state: &mut State) {
@@ -203,6 +380,17 @@ fn setup(ctx: &Context, state: &mut State) {
             FontId::new(23.0, FontFamily::Name("Libron Bold".into())),
         );
         style.spacing.button_padding = vec2(8.0, 5.0);
+        for widget in [
+            &mut style.visuals.widgets.noninteractive,
+            &mut style.visuals.widgets.inactive,
+            &mut style.visuals.widgets.hovered,
+            &mut style.visuals.widgets.active,
+            &mut style.visuals.widgets.open,
+        ] {
+            widget.corner_radius = CornerRadius::same(5);
+        }
+        style.visuals.window_corner_radius = CornerRadius::same(6);
+        style.visuals.menu_corner_radius = CornerRadius::same(5);
     });
     state.textures = vec![
         texture(
@@ -215,7 +403,7 @@ fn setup(ctx: &Context, state: &mut State) {
         texture(
             ctx,
             "toggle",
-            include_bytes!("../../../assets/ui/toggle.jpg"),
+            include_bytes!("../../../assets/ui/toggle-clean.png"),
         ),
         texture(
             ctx,
@@ -286,6 +474,17 @@ pub fn create(params: Arc<B18nParams>) -> Option<Box<dyn Editor>> {
 }
 
 fn draw(ctx: &Context, setter: &ParamSetter, state: &mut State, params: &B18nParams) {
+    state.language = if params
+        .ui_language
+        .lock()
+        .map(|value| value.as_str() == "en")
+        .unwrap_or(false)
+    {
+        Language::English
+    } else {
+        Language::Spanish
+    };
+    let lang = state.language;
     CentralPanel::default()
         .frame(Frame::NONE.fill(BLUE))
         .show(ctx, |ui| {
@@ -332,6 +531,26 @@ fn draw(ctx: &Context, setter: &ParamSetter, state: &mut State, params: &B18nPar
                 Color32::WHITE,
             );
             channel_guides(ui, origin);
+            // These labels are baked in English in the original artwork; replace them
+            // at draw time so the source illustration stays untouched.
+            for index in 0..3 {
+                let x = right_at(origin, 423.0 + index as f32 * 43.5, 381.0).x;
+                let rect = Rect::from_center_size(pos2(x, origin.y + 477.0), vec2(44.0, 14.0));
+                ui.painter()
+                    .rect_filled(rect, 3.0, Color32::from_rgb(29, 35, 40));
+                let name = match index {
+                    0 => lang.tr("ENT. 1", "INPUT 1"),
+                    1 => lang.tr("ENT. 2", "INPUT 2"),
+                    _ => "INSTR",
+                };
+                ui.painter().text(
+                    rect.center(),
+                    Align2::CENTER_CENTER,
+                    name,
+                    FontId::proportional(10.0),
+                    Color32::WHITE,
+                );
+            }
             for (index, value) in [
                 ChannelParam::Bass,
                 ChannelParam::Guitar,
@@ -363,9 +582,11 @@ fn draw(ctx: &Context, setter: &ParamSetter, state: &mut State, params: &B18nPar
                     );
                 }
                 response.on_hover_text(match value {
-                    ChannelParam::Bass => "Bass · Canal 1",
-                    ChannelParam::Guitar => "Guitar · Canal 1",
-                    ChannelParam::Instrument => "Instrument · Canal 2",
+                    ChannelParam::Bass => lang.tr("Bajo - Canal 1", "Bass - Channel 1"),
+                    ChannelParam::Guitar => lang.tr("Guitarra - Canal 1", "Guitar - Channel 1"),
+                    ChannelParam::Instrument => {
+                        lang.tr("Instrumento - Canal 2", "Instrument - Channel 2")
+                    }
                 });
             }
             let toggle_center = at(1004.0, 374.0);
@@ -389,63 +610,59 @@ fn draw(ctx: &Context, setter: &ParamSetter, state: &mut State, params: &B18nPar
                     },
                 );
             }
-            disc(
-                ui,
-                state.textures[3].id(),
-                toggle_center,
-                16.0 * CONTROL_SCALE,
-                0.0,
-                pos2(0.495, 0.535),
-                0.17,
-            );
             let tilt = ui
                 .ctx()
                 .animate_bool_with_time(Id::new("cab-tilt"), active_cab, 0.12);
-            let mut lever = Mesh::with_texture(state.textures[3].id());
             let rotation = emath::Rot2::from_angle(tilt * std::f32::consts::PI);
+            let mut switch = Mesh::with_texture(state.textures[3].id());
             for (offset, uv) in [
-                (vec2(-6.0, 0.0), pos2(0.455, 0.52)),
-                (vec2(6.0, 0.0), pos2(0.57, 0.52)),
-                (vec2(6.0, 29.0), pos2(0.57, 0.815)),
-                (vec2(-6.0, 29.0), pos2(0.455, 0.815)),
+                (vec2(-40.0, -32.0), pos2(0.0, 0.0)),
+                (vec2(40.0, -32.0), pos2(1.0, 0.0)),
+                (vec2(40.0, 48.0), pos2(1.0, 1.0)),
+                (vec2(-40.0, 48.0), pos2(0.0, 1.0)),
             ] {
-                lever.vertices.push(epaint::Vertex {
-                    pos: toggle_center + rotation * offset * CONTROL_SCALE,
+                switch.vertices.push(epaint::Vertex {
+                    pos: toggle_center + rotation * offset,
                     uv,
                     color: Color32::WHITE,
                 });
             }
-            lever.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
-            ui.painter().add(Shape::mesh(lever));
+            switch.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
+            ui.painter().add(Shape::mesh(switch));
             label(
                 ui,
                 at(1004.0, 432.0),
-                if active_cab { "CAB ON" } else { "CAB OFF" },
+                if active_cab {
+                    lang.tr("CAB S\u{cd}", "CAB ON")
+                } else {
+                    lang.tr("CAB NO", "CAB OFF")
+                },
                 11.0,
             );
-            toggle_response.on_hover_text("Activar o desactivar la bocina");
+            toggle_response
+                .on_hover_text(lang.tr("Activar o desactivar la bocina", "Turn speaker on or off"));
             // Controls below the artwork stay large and readable at the native editor size.
             let knobs = [
-                (&params.volume_1, "VOLUME"),
-                (&params.treble_1, "TREBLE"),
-                (&params.bass_1, "BASS"),
-                (&params.volume_2, "VOLUME"),
-                (&params.treble_2, "TREBLE"),
-                (&params.bass_2, "BASS"),
+                &params.volume_1,
+                &params.treble_1,
+                &params.bass_1,
+                &params.volume_2,
+                &params.treble_2,
+                &params.bass_2,
             ];
-            for (i, (param, title)) in knobs.iter().enumerate() {
+            for (i, param) in knobs.iter().enumerate() {
                 knob(
                     ui,
                     setter,
                     param,
                     state.textures[2].id(),
                     at(562.0 + i as f32 * 65.7, 374.0),
-                    title,
                     i,
+                    state,
                 );
             }
-            label(ui, at(628.0, 474.0), "CANAL 1", 11.0);
-            label(ui, at(825.0, 474.0), "CANAL 2", 11.0);
+            label(ui, at(628.0, 474.0), lang.tr("CANAL 1", "CHANNEL 1"), 11.0);
+            label(ui, at(825.0, 474.0), lang.tr("CANAL 2", "CHANNEL 2"), 11.0);
             ui.scope_builder(
                 UiBuilder::new().max_rect(Rect::from_min_size(
                     at(385.0, 500.0) + vec2(0.0, 22.0),
@@ -453,11 +670,14 @@ fn draw(ctx: &Context, setter: &ParamSetter, state: &mut State, params: &B18nPar
                 )),
                 |ui| {
                     ui.horizontal(|ui| {
-                        ui.label("Entrada");
+                        ui.label(lang.tr("Entrada", "Input"));
                         for (value, name) in [
-                            (ChannelParam::Bass, "Bass"),
-                            (ChannelParam::Guitar, "Guitar"),
-                            (ChannelParam::Instrument, "Instrument"),
+                            (ChannelParam::Bass, lang.tr("Bajo", "Bass")),
+                            (ChannelParam::Guitar, lang.tr("Guitarra", "Guitar")),
+                            (
+                                ChannelParam::Instrument,
+                                lang.tr("Instrumento", "Instrument"),
+                            ),
                         ] {
                             if ui
                                 .selectable_label(params.channel.value() == value, name)
@@ -467,7 +687,7 @@ fn draw(ctx: &Context, setter: &ParamSetter, state: &mut State, params: &B18nPar
                             }
                         }
                         ui.separator();
-                        ui.label("Bocina");
+                        ui.label(lang.tr("Bocina", "Speaker"));
                         let active = params.speaker.value();
                         if active != SpeakerParam::Direct {
                             state.last_speaker = Some(active);
@@ -478,7 +698,10 @@ fn draw(ctx: &Context, setter: &ParamSetter, state: &mut State, params: &B18nPar
                         ] {
                             if ui
                                 .selectable_label(active == value, name)
-                                .on_hover_text("Perfil de bocina aproximado")
+                                .on_hover_text(lang.tr(
+                                    "Perfil de bocina aproximado",
+                                    "Approximate speaker profile",
+                                ))
                                 .clicked()
                             {
                                 set(setter, &params.speaker, value);
@@ -486,9 +709,9 @@ fn draw(ctx: &Context, setter: &ParamSetter, state: &mut State, params: &B18nPar
                         }
                         if ui
                             .button(if active == SpeakerParam::Direct {
-                                "CAB OFF"
+                                lang.tr("CAB NO", "CAB OFF")
                             } else {
-                                "CAB ON"
+                                lang.tr("CAB S\u{cd}", "CAB ON")
                             })
                             .clicked()
                         {
@@ -505,23 +728,51 @@ fn draw(ctx: &Context, setter: &ParamSetter, state: &mut State, params: &B18nPar
                     });
                     ui.add_space(24.0);
                     ui.horizontal(|ui| {
-                        ui.label("Entrada");
-                        ui.add(
-                            ParamSlider::for_param(&params.input_trim_db, setter).with_width(170.0),
-                        );
-                        ui.label("Salida");
-                        ui.add(
-                            ParamSlider::for_param(&params.output_trim_db, setter)
-                                .with_width(170.0),
-                        );
+                        ui.label(lang.tr("Entrada", "Input"));
+                        rounded_trim(ui, &params.input_trim_db, setter);
+                        ui.label(lang.tr("Salida", "Output"));
+                        rounded_trim(ui, &params.output_trim_db, setter);
                         if ui
-                            .selectable_label(params.bypass.value(), "Bypass")
+                            .selectable_label(
+                                params.bypass.value(),
+                                lang.tr("Sin efecto", "Bypass"),
+                            )
                             .clicked()
                         {
                             set(setter, &params.bypass, !params.bypass.value());
                         }
-                        if ui.button("Ajustes").clicked() {
+                        if ui.button(lang.tr("Ajustes", "Settings")).clicked() {
                             state.settings = !state.settings;
+                        }
+                    });
+                },
+            );
+            ui.scope_builder(
+                UiBuilder::new().max_rect(Rect::from_min_size(
+                    origin + vec2(1045.0, 22.0),
+                    vec2(136.0, 36.0),
+                )),
+                |ui| {
+                    ui.horizontal(|ui| {
+                        for (language, name) in
+                            [(Language::English, "ENG"), (Language::Spanish, "ESP")]
+                        {
+                            let response = ui.add_sized(
+                                vec2(58.0, 34.0),
+                                Button::new(RichText::new(name).color(BLUE).strong())
+                                    .fill(Color32::WHITE)
+                                    .stroke(Stroke::new(
+                                        if lang == language { 1.5 } else { 0.0 },
+                                        BLUE,
+                                    ))
+                                    .corner_radius(5),
+                            );
+                            if response.clicked() {
+                                if let Ok(mut value) = params.ui_language.lock() {
+                                    *value = language.code().to_string();
+                                }
+                                ui.ctx().request_repaint();
+                            }
                         }
                     });
                 },
@@ -534,7 +785,7 @@ fn draw(ctx: &Context, setter: &ParamSetter, state: &mut State, params: &B18nPar
                 |ui| {
                     if ui
                         .add(egui_manual_button(state.textures[4].id()))
-                        .on_hover_text("Manual · Guía de uso")
+                        .on_hover_text(lang.tr("Manual · Guía de uso", "Manual - User guide"))
                         .clicked()
                     {
                         state.manual = !state.manual;
@@ -543,20 +794,37 @@ fn draw(ctx: &Context, setter: &ParamSetter, state: &mut State, params: &B18nPar
             );
         });
     if state.settings {
-        Window::new("Ajustes")
+        Window::new(lang.tr("Ajustes", "Settings"))
+            .id(Id::new("settings-window"))
             .open(&mut state.settings)
             .resizable(false)
             .show(ctx, |ui| {
-                ui.label("Calidad: menor consumo o mayor precisión del sonido.");
-                ui.add(ParamSlider::for_param(
-                    &params.advanced.oversampling,
-                    setter,
+                ui.label(lang.tr(
+                    "Calidad: menor consumo o mayor precisión del sonido.",
+                    "Quality: lower resource use or greater sound accuracy.",
                 ));
-                ui.label("Carga del amplificador");
+                ui.horizontal(|ui| {
+                    for (value, name) in [
+                        (OversamplingFactor::One, "1x"),
+                        (OversamplingFactor::Two, "2x"),
+                        (OversamplingFactor::Four, "4x"),
+                    ] {
+                        if ui
+                            .selectable_label(params.advanced.oversampling.value() == value, name)
+                            .clicked()
+                        {
+                            set(setter, &params.advanced.oversampling, value);
+                        }
+                    }
+                });
+                ui.label(lang.tr("Carga del amplificador", "Amplifier load"));
                 ui.horizontal(|ui| {
                     for (value, name) in [
                         (LoadModelParam::Nominal, "Normal"),
-                        (LoadModelParam::RlcEstimated, "Alternativa"),
+                        (
+                            LoadModelParam::RlcEstimated,
+                            lang.tr("Alternativa", "Alternative"),
+                        ),
                     ] {
                         if ui
                             .selectable_label(params.advanced.load_model.value() == value, name)
@@ -566,14 +834,20 @@ fn draw(ctx: &Context, setter: &ParamSetter, state: &mut State, params: &B18nPar
                         }
                     }
                 });
-                ui.label("La carga alternativa es experimental y puede usar el modo normal.");
-                ui.label("Las bocinas de 18\" y 15\" son perfiles aproximados.");
+                ui.label(lang.tr(
+                    "La carga alternativa es experimental y puede usar el modo normal.",
+                    "The alternative load is experimental and may use normal mode.",
+                ));
+                ui.label(lang.tr(
+                    "Las bocinas de 18\" y 15\" son perfiles aproximados.",
+                    "The 18\" and 15\" speakers are approximate profiles.",
+                ));
                 ui.separator();
                 ui.hyperlink_to(
-                    "Tipografía Libron v0.31",
+                    lang.tr("Tipografía Libron v0.31", "Libron v0.31 font"),
                     "https://github.com/nicoverbruggen/libron/releases/tag/v0.31",
                 );
-                ui.collapsing("Licencia de la tipografía", |ui| {
+                ui.collapsing(lang.tr("Licencia de la tipografía", "Font license"), |ui| {
                     ScrollArea::vertical().max_height(170.0).show(ui, |ui| {
                         ui.label(include_str!("../../../assets/ui/Libron-LICENSE.txt"));
                     });
@@ -581,20 +855,20 @@ fn draw(ctx: &Context, setter: &ParamSetter, state: &mut State, params: &B18nPar
             });
     }
     if state.manual {
-        Window::new("Manual · B18N").open(&mut state.manual).default_pos(pos2(690.0, 105.0)).default_width(500.0).resizable(false).collapsible(false).show(ctx, |ui| {
+        Window::new(lang.tr("Manual de uso - B18N", "User manual - B18N"))
+            .id(Id::new("manual-window"))
+            .open(&mut state.manual)
+            .default_pos(pos2(690.0, 105.0))
+            .default_width(500.0)
+            .resizable(false)
+            .collapsible(false)
+            .show(ctx, |ui| {
                 ScrollArea::vertical().max_height(480.0).show(ui, |ui| {
-                    for (title, body) in [
-                        ("Entrada", "Bass y Guitar usan el canal 1. Instrument usa el canal 2. Selecciona la entrada que mejor acompañe tu instrumento."),
-                        ("Volume 1 / 2", "Ajusta el volumen de cada canal. Al subirlo puedes conseguir un sonido más saturado."),
-                        ("Treble 1 / 2", "Añade brillo o suaviza los agudos."),
-                        ("Bass 1 / 2", "Aumenta o reduce los graves."),
-                        ("Bocina 18\" / 15\"", "Prueba los dos perfiles de bocina y elige tu sonido favorito. Son aproximaciones del carácter de cada bocina."),
-                        ("CAB ON / OFF", "Activa el sonido de la bocina o escucha directamente el amplificador."),
-                        ("Entrada / Salida", "Ajusta cuánto nivel entra al amplificador y el volumen final. Baja la salida si el sonido resulta demasiado fuerte."),
-                        ("Bypass", "Escucha la señal sin el efecto para comparar."),
-                        ("Ajustes", "Calidad permite elegir entre menor consumo de recursos y mayor precisión del sonido: 1×, 2× o 4×. La carga alternativa es experimental y puede mantenerse en el modo normal."),
-                        ("Cómo ajustar", "Arrastra las perillas hacia arriba o abajo. Mantén Shift para ajustar con precisión. Haz doble clic para recuperar el valor inicial. También puedes usar la rueda del ratón sobre una perilla."),
-                    ] { ui.strong(title); ui.label(body); ui.add_space(10.0); }
+                    for (title, body) in manual_text::manual(lang) {
+                        ui.strong(title);
+                        ui.label(body);
+                        ui.add_space(10.0);
+                    }
                 });
             });
     }
@@ -795,6 +1069,112 @@ mod tests {
             );
         }
     }
+    fn key(key: Key) -> Event {
+        Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        }
+    }
+    #[test]
+    fn percentage_keyboard_entry_commits_one_host_gesture_and_escape_cancels() {
+        let ctx = Context::default();
+        let mut state = State::default();
+        setup(&ctx, &mut state);
+        let host = Host::default();
+        let params = B18nParams::default();
+        frame(&ctx, &mut state, &host, &params, vec![]);
+        let point = right_at(Pos2::ZERO, 562.0, 374.0) + vec2(0.0, 72.0) * CONTROL_SCALE;
+        click(&ctx, &mut state, &host, &params, point);
+        frame(&ctx, &mut state, &host, &params, vec![]);
+        frame(
+            &ctx,
+            &mut state,
+            &host,
+            &params,
+            vec![Event::Text("73,5".into()), key(Key::Enter)],
+        );
+        assert!(state.percent_edit.is_none());
+        assert_eq!(
+            *host.0.lock().unwrap(),
+            vec!["begin:Volume 1", "set:Volume 1:0.735", "end:Volume 1"]
+        );
+        host.0.lock().unwrap().clear();
+        click(&ctx, &mut state, &host, &params, point);
+        frame(&ctx, &mut state, &host, &params, vec![]);
+        frame(
+            &ctx,
+            &mut state,
+            &host,
+            &params,
+            vec![Event::Text("25".into()), key(Key::Escape)],
+        );
+        assert!(state.percent_edit.is_none());
+        assert!(host.0.lock().unwrap().is_empty());
+        assert!(parse_percent("101").is_none());
+        assert!(parse_percent("NaN").is_none());
+        assert!(parse_percent("-1").is_none());
+    }
+    fn texts(output: &FullOutput) -> String {
+        fn visit(shape: &Shape, all: &mut String) {
+            match shape {
+                Shape::Text(text) => {
+                    all.push_str(&text.galley.job.text);
+                    all.push('\n');
+                }
+                Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        visit(shape, all);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut all = String::new();
+        for shape in &output.shapes {
+            visit(&shape.shape, &mut all);
+        }
+        all
+    }
+    #[test]
+    fn language_buttons_translate_panel_manual_and_persist_choice() {
+        let ctx = Context::default();
+        let mut state = State::default();
+        setup(&ctx, &mut state);
+        let host = Host::default();
+        let params = B18nParams::default();
+        frame(&ctx, &mut state, &host, &params, vec![]);
+        click(&ctx, &mut state, &host, &params, pos2(1073.0, 39.0));
+        assert_eq!(*params.ui_language.lock().unwrap(), "en");
+        let output = frame(&ctx, &mut state, &host, &params, vec![]);
+        let content = texts(&output);
+        for word in [
+            "Input",
+            "Output",
+            "Speaker",
+            "CHANNEL 1",
+            "VOLUME",
+            "TREBLE",
+            "Settings",
+        ] {
+            assert!(content.contains(word), "missing English label: {word}");
+        }
+        assert!(!content.contains("Entrada"));
+        state.manual = true;
+        frame(&ctx, &mut state, &host, &params, vec![]);
+        let output = frame(&ctx, &mut state, &host, &params, vec![]);
+        assert!(texts(&output).contains("User manual"));
+        assert!(texts(&output).contains("Bass and Guitar use channel 1"));
+        state.manual = false;
+        frame(&ctx, &mut state, &host, &params, vec![]);
+        click(&ctx, &mut state, &host, &params, pos2(1140.0, 39.0));
+        assert_eq!(*params.ui_language.lock().unwrap(), "es");
+        let output = frame(&ctx, &mut state, &host, &params, vec![]);
+        assert!(texts(&output).contains("AGUDOS"));
+        assert!(texts(&output).contains("Entrada"));
+    }
     /// Rasterizes the actual egui meshes for review without needing a DAW or display server.
     #[test]
     fn render_editor_preview() {
@@ -810,8 +1190,19 @@ mod tests {
         };
         let params = B18nParams {
             channel: EnumParam::new("Channel", selected),
+            speaker: EnumParam::new(
+                "Speaker",
+                if std::env::var_os("B18N_UI_PREVIEW_CAB_ON").is_some() {
+                    SpeakerParam::Eighteen
+                } else {
+                    SpeakerParam::Direct
+                },
+            ),
             ..Default::default()
         };
+        if let Ok(language) = std::env::var("B18N_UI_PREVIEW_LANG") {
+            *params.ui_language.lock().unwrap() = language;
+        }
         let first = frame(&ctx, &mut state, &host, &params, vec![]);
         let mut textures = std::collections::HashMap::new();
         fn update(
@@ -912,7 +1303,15 @@ mod tests {
         std::fs::create_dir_all(&folder).unwrap();
         canvas
             .save(std::path::Path::new(&folder).join(if state.manual {
-                "b18n-manual.png"
+                if state.language == Language::English {
+                    "b18n-manual-eng.png"
+                } else {
+                    "b18n-manual.png"
+                }
+            } else if state.language == Language::English {
+                "b18n-editor-eng.png"
+            } else if std::env::var_os("B18N_UI_PREVIEW_CAB_ON").is_some() {
+                "b18n-cab-on.png"
             } else {
                 match selected {
                     ChannelParam::Bass => "b18n-editor.png",

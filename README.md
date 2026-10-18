@@ -1,101 +1,130 @@
-# B-18N Portaflex 1967 — modelo de circuito DSP (Rust)
+# B18N · V1.0
 
-Emulación por etapas del circuito del **Ampeg B-18N/B-15ND, revisión 5/67**, en Rust,
-con un núcleo DSP independiente del host y exportación posterior a VST3.
+**Un amplificador de bajo de 1967, recreado en Rust.**
 
-> Proyecto no oficial. No está afiliado ni respaldado por Ampeg/Yamaha.
-> «Ampeg», «Portaflex» y «B-18N» se mencionan solo con fines descriptivos e históricos.
+B18N es un efecto **VST3** de **Rust Pluggins**, basado en el circuito del
+**Ampeg B-18N/B-15ND de 1967**. Combina una simulación por etapas del amplificador
+con una interfaz ilustrada, controles animados y un manual integrado en español e inglés.
 
-## Estado
+El VST está desarrollado **enteramente en Rust**: el motor de audio, la configuración
+del modelo y la interfaz gráfica. Las herramientas externas de análisis se utilizan
+durante el desarrollo y no son necesarias para utilizar el plugin.
 
-- **Hito A — repositorio y modelo de datos:** completado.
-- **Hito B — camino lineal verificable:** completado (entrada, volumen, red de tono con
-  MNA/TPT, mezcla, inversor ideal, OT-471 ideal con DCR y 8 Ω).
-- **Hito C — no linealidad a válvulas:** implementado para el 6SL7 (Koren calibrado,
-  Newton amortiguado, conducción de rejilla, reposo resuelto al inicializar) y para la
-  **etapa de potencia 2 × 7027A** (placa + pantalla, bias fija con acoplo que bloquea
-  continua, OT ideal con toma central y DCR, 8 Ω) con sobremuestreo 4× y latencia
-  reportada. El pentodo 7199 queda pendiente de resolver sus medidas DC (documentado).
-- **P1.4–P1.6:** inversor 7199 real, tone stack contra ngspice y NFB con memoria de
-  capacitores; latencia del sobremuestreo 4× corregida a **47 muestras** midiendo el
-  impulso (el valor anterior, 93, duplicaba el retardo por etapa).
-- **P1.7 — plugin VST3:** `crates/b18n-plugin` (NIH-plug, GPL-3.0-only) con layouts
-  2→2 y 1→1 (estéreo = dos motores), parámetros con IDs estables, presets con huellas
-  del modelo, bypass compensado en latencia y oversampling 1×/2×/4× en panel avanzado.
-  Bundle: `cargo xtask bundle b18n-plugin --release` → `target/bundled/B18N 67.vst3`.
-  Quedan como pasos manuales el Steinberg Validator y la prueba en DAW.
-- **Speaker (aproximado):** selector Direct / 18 inch / 15 inch, con perfiles
-  acústicos IIR y transición suave. Direct conserva la salida del amplificador;
-  no son IR medidas ni cargas reactivas. Ambos previos procesan continuamente.
-- **P2 (pendiente):** fuente dinámica (5AR4/sag), OT no ideal, gabinete reactivo/IR.
-- Guía de hitos en [`docs/IMPLEMENTATION_GUIDE.md`](docs/IMPLEMENTATION_GUIDE.md).
+![Interfaz de B18N V1.0 en español](assets/ui/screenshots/b18n-esp.png)
 
-El motor ya satura previo y etapa de potencia; la fuente todavía es rígida (Hito D).
-Los parámetros de modelo viven en `assets/models/b18n_1967_calibration.json`,
-etiquetados como estimados/datasheet.
-Cualquier dato no respaldado por la documentación histórica debe ir a
-`assets/models/b18n_1967_calibration.example.json` y quedar etiquetado.
+[Ver interfaz en inglés](assets/ui/screenshots/b18n-eng.png)
 
-## Estructura
+## Basado en esquemas reales
 
-```text
-crates/b18n-config   JSON histórico -> CircuitDefinition tipada (serde)
-crates/b18n-dsp      núcleo DSP sin NIH-plug, sin GUI, sin VST3
-crates/b18n-plugin   adaptador VST3 (NIH-plug) con parámetros y estado
-crates/b18n-render   procesado WAV offline, mediciones y reportes (CLI)
-xtask                bundler NIH-plug (Hito E)
-assets/models        JSON canónico + calibración separada
-assets/fixtures      señales y referencias verificadas (no inventadas)
-assets/reference     PDFs históricos locales (no se redistribuyen)
-docs                 guía de implementación, trazabilidad, supuestos
+Para desarrollar el modelo se han utilizado **esquemas eléctricos reales del Ampeg
+B-18N de 1967**, concretamente el esquema **B-18N/B-15ND, revisión de mayo de 1967
+(5/67)**, junto con el manual de servicio y documentación de las válvulas.
+
+Estas referencias sirven para identificar las conexiones, los componentes y las etapas
+del circuito. El modelo incluye los previos, las redes de volumen y tono, el inversor de
+fase y la etapa de potencia. Los valores históricos se mantienen separados de los
+parámetros de calibración y de las aproximaciones necesarias para la simulación digital.
+
+- [Esquema B-18N/B-15ND, revisión 5/67](https://vintage-blue.com/assets/b18n-b15nd_schematic_5_67.pdf).
+- [Manual de servicio B-18N de 1967](https://vintage-blue.com/assets/b18n_1967_service_manual.pdf).
+- [Trazabilidad del circuito](docs/CIRCUIT_TRACEABILITY.md).
+- [Procedencia de las referencias históricas](assets/reference/README.md).
+
+Los PDF históricos se consultan localmente y no se redistribuyen en este repositorio.
+El uso de esquemas reales no implica que cada comportamiento del hardware haya sido
+medido: los datos estimados y de hojas técnicas se identifican como tales en la calibración.
+
+## Funciones de la V1.0
+
+- **Tres entradas seleccionables:** Input 1/Bass y Input 2/Guitar utilizan el canal 1;
+  INSTR/Instrument utiliza el canal 2. El cable ilustrado señala la entrada activa.
+- **Dos canales de controles:** volumen, agudos y graves independientes, con ambos
+  previos procesando continuamente.
+- **Perillas animadas y porcentajes editables:** arrastra para ajustar, usa Shift para
+  mayor precisión o escribe directamente el porcentaje. Enter confirma y Escape cancela.
+- **Bocinas de 18 y 15 pulgadas:** dos perfiles acústicos aproximados. CAB permite
+  activarlos o escuchar la salida directa del amplificador. No son IR medidas.
+- **Ajustes de nivel de entrada y salida**, bypass y calidad seleccionable 1×/2×/4×.
+- **Interfaz ENG/ESP:** etiquetas, ayudas, ajustes y manual cambian con el idioma elegido.
+  La selección se conserva con la instancia del plugin.
+- **Procesamiento mono y estéreo**, automatización de parámetros y recuperación de estado.
+
+La interfaz utiliza la tipografía [Libron v0.31 de Nico Verbruggen](https://github.com/nicoverbruggen/libron/releases/tag/v0.31),
+integrada en Regular y Bold bajo [SIL Open Font License 1.1](assets/ui/Libron-LICENSE.txt).
+[Detalles del editor](docs/UI_EDITOR.md) · [Procedencia de imágenes y recursos](assets/ui/README.md).
+
+## Simulación, comparación y pruebas
+
+El desarrollo utiliza referencias independientes para comparar el comportamiento del
+motor Rust con simulaciones eléctricas y cálculos numéricos:
+
+| Herramienta | Uso en el proyecto |
+|---|---|
+| **ngspice / SPICE** | Simular circuitos de referencia y obtener puntos de trabajo DC, respuestas AC y transitorios. |
+| **Python y NumPy** | Preparar referencias, realizar cálculos independientes y comparar respuestas y datos de prueba. |
+| **SciPy** | Ajustar modelos de válvulas a datos y curvas documentadas mediante optimización numérica. |
+| **b18n-render, escrito en Rust** | Procesar WAV sin un DAW, realizar mediciones y generar reportes reproducibles. |
+| **Cargo, rustfmt y Clippy** | Ejecutar pruebas automatizadas y comprobar formato y calidad del código. |
+
+Los netlists, las condiciones de simulación y los resultados de referencia se conservan
+para poder repetir las comparaciones. Estas comprobaciones respaldan las partes evaluadas;
+no sustituyen una comparación auditiva o mediciones completas de un amplificador físico.
+
+[Referencias y simulaciones SPICE](scripts/spice/README.md) ·
+[Guía de implementación](docs/IMPLEMENTATION_GUIDE.md).
+
+## Compilar el VST3
+
+Se necesita el entorno Rust indicado en `rust-toolchain.toml` y las herramientas de
+compilación de la plataforma. Para generar el bundle:
+
+```bash
+cargo xtask bundle b18n-plugin --release
 ```
 
-Dependencias permitidas: `assets/*.json -> b18n-config -> b18n-dsp`; `b18n-render` y
-`b18n-plugin` usan `b18n-config + b18n-dsp`. `b18n-dsp` no conoce archivos ni APIs de
-host.
+En Windows, el resultado se encuentra en:
 
-## Construcción y pruebas
+```text
+target/bundled/B18N 67.vst3
+```
+
+Instala la carpeta completa del bundle en el directorio VST3 utilizado por tu DAW
+y vuelve a explorar los plugins. Las capturas del README se generan a partir del editor;
+la validación de apertura, escalado y comportamiento en cada DAW sigue siendo una
+comprobación independiente.
+
+## Verificación del código
 
 ```bash
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-cargo build --workspace --release
-cargo xtask bundle b18n-plugin --release
 ```
 
-Render offline (cadena lineal + reporte JSON; `--measure tone` añade las 25 curvas
-Bass/Treble en CSV):
+El renderizador offline se ejecuta con `cargo run -p b18n-render --release -- --help`.
+Las herramientas Python y ngspice son opcionales para el usuario final y se requieren
+únicamente al reproducir los análisis que dependen de ellas.
 
-```bash
-cargo run -p b18n-render --release -- \
-  --input assets/fixtures/signals/bass_test.wav \
-  --output target/renders/b18n_output.wav \
-  --sample-rate 48000 \
-  --oversampling 4 \
-  --channel bass \
-  --cabinet off \
-  --speaker direct \
-  --measure tone \
-  --report target/reports/b18n_1967.json
+## Organización
+
+```text
+crates/b18n-dsp      Motor de audio Rust independiente del host
+crates/b18n-config   Datos del circuito y configuración tipada
+crates/b18n-plugin   Adaptador VST3, parámetros, estado e interfaz
+crates/b18n-render   Renderizador y mediciones WAV offline
+assets/models       Modelo histórico y calibración
+assets/fixtures     Datos y señales de referencia
+assets/ui           Ilustraciones, tipografías y capturas
+scripts             Herramientas de análisis y simulación
+docs                Arquitectura, trazabilidad y validación
 ```
 
-## Regla de datos
+## Licencia y atribución
 
-El JSON histórico es la única fuente de parámetros. No se inventan topologías, valores
-ni mediciones: todo supuesto va documentado y etiquetado como `estimated`, `measured` o
-`datasheet` en el archivo de calibración.
+Código bajo **GPL-3.0-only**. La distribución de binarios construidos con NIH-plug y
+sus bindings VST3 debe respetar los términos de sus licencias. Las tipografías mantienen
+su licencia y atribución propias.
 
-## Licencia
-
-GPL-3.0-only. La distribución de un binario VST3 construido con los bindings `vst3-sys`
-de NIH-plug exige cumplir GPLv3 (véase el Hito E en la guía).
-
-## Interfaz B18N
-
-Editor ilustrado de 1280 x 744: columna naranja con B18N, amplificador y logo Rust Pluggins;
-controles animados, bocinas 18/15 y manual integrado. [Detalle del editor](docs/UI_EDITOR.md).
-
-Tipografía [Libron v0.31 de Nico Verbruggen](https://github.com/nicoverbruggen/libron/releases/tag/v0.31),
-integrada sin modificaciones en Regular y Bold, bajo [SIL Open Font License 1.1](assets/ui/Libron-LICENSE.txt).
-[Procedencia de los recursos y prompts del logo](assets/ui/README.md).
+**Proyecto independiente, no oficial.** No está afiliado ni respaldado por Ampeg o
+Yamaha. Los nombres Ampeg, Portaflex y B-18N se utilizan para identificar el equipo
+histórico que sirve de referencia.

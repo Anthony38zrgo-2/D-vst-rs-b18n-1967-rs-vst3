@@ -3,7 +3,7 @@
 The five JPEG files are the original user-supplied illustrations, copied unchanged.
 `head-reference.jpg` records the original control arrangement; it is not embedded in the plugin.
 The editor crops the originals at draw time. Circular dial meshes sample the central knob,
-leaving the scale fixed. The toggle uses a stationary nut and an animated lever.
+leaving the scale fixed. The toggle now uses a single transparent sprite; see the correction below.
 
 `Libron-Regular.ttf` and `Libron-Bold.ttf`: unmodified Libron v0.31 by Nico Verbruggen,
 SIL Open Font License 1.1. See `Libron-LICENSE.txt` for complete attribution, including
@@ -73,3 +73,14 @@ Leave only the male cable plug's slim silver cylindrical barrel, black strain re
 and trailing cable. Preserve the watercolor rendering, cable curve, diagonal orientation,
 canvas dimensions and barrel/cable positions. No exposed long tip, washer, nut, socket
 or surrounding circular base; removed hardware must be genuinely transparent.
+
+`toggle-clean.png`: full transparent switch sprite, generated with built-in imagegen
+from `toggle.jpg`. This replaces both old rectangular/circular source crops. It is
+rotated as one object, so no duplicate lever stays in the mounting base.
+Prompt: Extract and clean this exact watercolor toggle switch as one complete UI sprite
+with a genuinely transparent background. Remove ALL blue background and clean the silhouette
+around the metal nut and SINGLE lever, with no rectangular fragments. Preserve watercolor
+silver and ink contours. Recenter the mounting nut pivot at canvas center, square canvas,
+nut diameter about 45 percent of canvas width, with one lever pointing down. One nut,
+one lever, no duplicate stalk, text, panel or cast shadow outside the object.
+The delivered image's actual mounting pivot is sampled at approximately (0.50,0.40).
