@@ -90,3 +90,12 @@ ni mediciones: todo supuesto va documentado y etiquetado como `estimated`, `meas
 
 GPL-3.0-only. La distribución de un binario VST3 construido con los bindings `vst3-sys`
 de NIH-plug exige cumplir GPLv3 (véase el Hito E en la guía).
+
+## Interfaz B18N
+
+Editor ilustrado de 1280 x 744: columna naranja con B18N, amplificador y logo Rust Pluggins;
+controles animados, bocinas 18/15 y manual integrado. [Detalle del editor](docs/UI_EDITOR.md).
+
+Tipografía [Libron v0.31 de Nico Verbruggen](https://github.com/nicoverbruggen/libron/releases/tag/v0.31),
+integrada sin modificaciones en Regular y Bold, bajo [SIL Open Font License 1.1](assets/ui/Libron-LICENSE.txt).
+[Procedencia de los recursos y prompts del logo](assets/ui/README.md).

@@ -132,6 +132,8 @@ impl From<LoadModelParam> for SpeakerLoadSelection {
 /// Parámetros del B-18N '67.
 #[derive(Params)]
 pub struct B18nParams {
+    #[persist = "editor-state-layout-v3"]
+    pub editor_state: std::sync::Arc<nih_plug_egui::EguiState>,
     /// Conector de entrada (Bass/Guitar comparten el canal 1; Instrument el 2).
     #[id = "channel"]
     pub channel: EnumParam<ChannelParam>,
@@ -220,6 +222,10 @@ const OUTPUT_TRIM_DEFAULT_DB: f32 = -20.0;
 impl Default for B18nParams {
     fn default() -> Self {
         Self {
+            editor_state: nih_plug_egui::EguiState::from_size(
+                crate::editor::WIDTH,
+                crate::editor::HEIGHT,
+            ),
             channel: EnumParam::new("Channel", ChannelParam::default()),
             speaker: EnumParam::new("Speaker", SpeakerParam::default()),
             input_trim_db: trim("Input Trim", 0.0),
